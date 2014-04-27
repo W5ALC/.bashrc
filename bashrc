@@ -4,7 +4,7 @@
  
 source ~/.bash_functions.cfg
 source /usr/share/autojump/autojump.sh
-export PATH=$PATH:/home/nowhereman/bin:/opt
+export PATH=$PATH:~/bin:/opt
  # Define a few Color's
 # Normal Colors
 Black='\e[0;30m'        # Black
