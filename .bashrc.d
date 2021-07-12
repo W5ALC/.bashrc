@@ -12,7 +12,7 @@ alias un='sudo dnf -y remove'
 alias youtube='youtube-dl --extract-audio --audio-format mp3 --audio-quality 0 --prefer-ffmpeg'
 alias wgetc='wget -c'
 
-# Alias's to control hardware
+# Aliass to control hardware
 alias cdo='eject /dev/cdrecorder'
 alias cdc='eject -t /dev/cdrecorder'
 alias dvdo='eject /dev/dvd'
