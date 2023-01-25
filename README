@@ -1,4 +1,12 @@
 .bashrc
 =======
 
-My ".bashrc" and additional ".bashrc.d" #my bash functions gathered from various sources...
+My .bash{rc-_functions-_aliases,_complete} dotfiles and additional .text_functions
+
+Custom PS1 to show active ssh connection to specified port.
+
+systemctl functions
+
+network functions
+
+and a whole lot more.
