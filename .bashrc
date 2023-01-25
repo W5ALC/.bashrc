@@ -22,20 +22,33 @@ done
 unset dotfiles; unset -v dotfile
 
 # This will show if there is an active SSH connection after each command is executed.
-
-_prompt_command()
+ssh_psONE() # Shows login before last of current user; best used with AllowUsers in sshd_config
 {
+if [[ "$(last | sed -n '2p' | awk '{ print $3 }')" =~ ("172.58."*|"67.190.156.142"|"10.0.0.83"|"10.0.2.2") ]]; then
+printf %b "\\[\\e[1;32m\\]My Phone\n"
+else
+last | sed -n '2p' | awk '{ print $3 }'
+fi
+}
+
+localpsONE() # Shows the last login from the current user; best used with AllowUsers in sshd_config
+{
+if [[ "$(lastlog | grep $(whoami) | awk '{ print $3 }')" =~ ("172.58."*|"67.190.156.142"|"10.0.0.83"|"10.0.2.2") ]]; then
+printf %b "\\[\\e[1;32m\\]My Phone\n"
+else
+lastlog | grep $(whoami) | awk '{ print $3 }'
+fi
+}
 if [[ -n $SSH_CLIENT ]]; then
-	PS1="\\[\\e[1;32m\\]🟢 $(last | sed -n '2p' | awk '{ print $3 }')\\[\\e[0m\\]\\[\\e[1;33m\\]\n\w/\n\\[\\e[0m\\]\\[\\e[1;31m\\]𝝅 \\[\\e[0m\\]\\[\\e[1;32m\\] "
+	PS1="\\[\\e[1;31m\\]🟢 $(ssh_psONE)\\[\\e[0m\\]\\[\\e[1;33m\\]\n\w/\n\\[\\e[0m\\]\\[\\e[1;31m\\]𝝅 \\[\\e[0m\\]\\[\\e[1;32m\\] "
 else
 	ss -tn src :8222 | grep ESTAB &> /dev/null
     if [ $? -ne "1" ]; then
-	PS1="\\[\\e[1;31m\\]🟡 $(lastlog | grep $(whoami) | awk '{ print $3 }')\\[\\e[1;33m\\]\n\w/\n\\[\\e[0m\\]\\[\\e[1;31m\\]𝝅\\[\\e[0m\\]\\[\\e[1;32m\\] "
+	PS1="\\[\\e[1;31m\\]🟢 $(ssh_psONE)\\[\\e[1;33m\\]\n\w/\n\\[\\e[0m\\]\\[\\e[1;31m\\]𝝅\\[\\e[0m\\]\\[\\e[1;32m\\] "
     else
-	PS1="\\[\\e[1;31m\\]🟢 $(lastlog | grep $(whoami) | awk '{ print $3 }')\\[\\e[1;33m\\]\n\w/\n\\[\\e[0m\\]\\[\\e[1;31m\\]𝝅\\[\\e[0m\\]\\[\\e[1;32m\\] "
+	PS1="\\[\\e[1;31m\\]🔴 $(ssh_psONE)\\[\\e[1;33m\\]\n\w/\n\\[\\e[0m\\]\\[\\e[1;31m\\]𝝅\\[\\e[0m\\]\\[\\e[1;32m\\] "
     fi
-fi
-}
+fi}
 
 alias bashr="nano ~/.bashrc && source ~/.bashrc" # edit .bashrc and source it.
 alias bashf="nano ~/.bash_functions && source ~/.bash_functions" # edit .bash_functions and source it.
