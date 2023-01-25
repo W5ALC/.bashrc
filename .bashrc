@@ -1,127 +1,136 @@
-# ~/.bashrc: executed by bash(1) for non-login shells.
-# see /usr/share/doc/bash/examples/startup-files (in the package bash-doc)
-# for examples
- 
-source /usr/share/autojump/autojump.sh
-export PATH=$PATH:~/bin:/opt
+# .bashrc
 
-
-# If not running interactively, don't do anything
-[ -z "$PS1" ] && return
- 
-# don't put duplicate lines in the history. See bash(1) for more options
-# ... or force ignoredups and ignorespace
-HISTCONTROL=ignoredups:ignorespace
- 
-# append to the history file, don't overwrite it
-shopt -s histappend
-shopt -s autocd
-
-
-# for setting history length see HISTSIZE and HISTFILESIZE in bash(1)
-HISTSIZE=9999
-HISTFILESIZE=9999
- 
-# check the window size after each command and, if necessary,
-# update the values of LINES and COLUMNS.
-shopt -s checkwinsize
- 
-# make less more friendly for non-text input files, see lesspipe(1)
-[ -x /usr/bin/lesspipe ] && eval "$(SHELL=/bin/sh lesspipe)"
- 
-# set variable identifying the chroot you work in (used in the prompt below)
-if [ -z "$debian_chroot" ] && [ -r /etc/debian_chroot ]; then
-    debian_chroot=$(cat /etc/debian_chroot)
+# Source global bash config
+if [ -f /etc/bashrc ]; then
+source /etc/bashrc
 fi
- 
-# set a fancy prompt (non-color, unless we know we "want" color)
-case "$TERM" in
-    xterm-color) color_prompt=yes;;
-esac
- 
-# uncomment for a colored prompt, if the terminal has the capability; turned
-# off by default to not distract the user: the focus in a terminal window
-# should be on the output of commands, not on the prompt
-#force_color_prompt=yes
- 
-if [ -n "$force_color_prompt" ]; then
-    if [ -x /usr/bin/tput ] && tput setaf 1 >&/dev/null; then
-	# We have color support; assume it's compliant with Ecma-48
-	# (ISO/IEC-6429). (Lack of such support is extremely rare, and such
-	# a case would tend to support setf rather than setaf.)
-	color_prompt=yes
+
+# Create an array of potential dotfiles
+dotfiles=(
+  "${HOME}/.bash_aliases"
+  "${HOME}/.bash_functions"
+  "${HOME}/.bashrc_colors"
+  "${HOME}/.text_functions"
+)
+
+# Work through our list of dotfiles, if a match is found, load it
+# shellcheck source=/dev/null
+for dotfile in "${dotfiles[@]}"; do
+  [[ -r "${dotfile}" ]] && source "${dotfile}"
+done
+
+unset dotfiles; unset -v dotfile
+
+# This will show if there is an active SSH connection after each command is executed.
+
+_prompt_command()
+{
+if [[ -n $SSH_CLIENT ]]; then
+	PS1="\\[\\e[1;32m\\]🟢 $(last | sed -n '2p' | awk '{ print $3 }')\\[\\e[0m\\]\\[\\e[1;33m\\]\n\w/\n\\[\\e[0m\\]\\[\\e[1;31m\\]𝝅 \\[\\e[0m\\]\\[\\e[1;32m\\] "
+else
+	ss -tn src :8222 | grep ESTAB &> /dev/null
+    if [ $? -ne "1" ]; then
+	PS1="\\[\\e[1;31m\\]🟡 $(lastlog | grep $(whoami) | awk '{ print $3 }')\\[\\e[1;33m\\]\n\w/\n\\[\\e[0m\\]\\[\\e[1;31m\\]𝝅\\[\\e[0m\\]\\[\\e[1;32m\\] "
     else
-	color_prompt=
+	PS1="\\[\\e[1;31m\\]🟢 $(lastlog | grep $(whoami) | awk '{ print $3 }')\\[\\e[1;33m\\]\n\w/\n\\[\\e[0m\\]\\[\\e[1;31m\\]𝝅\\[\\e[0m\\]\\[\\e[1;32m\\] "
     fi
 fi
+}
 
+alias bashr="nano ~/.bashrc && source ~/.bashrc" # edit .bashrc and source it.
+alias bashf="nano ~/.bash_functions && source ~/.bash_functions" # edit .bash_functions and source it.
+alias basha="nano ~/.bash_aliases && source ~/.bash_aliases" # edit .bash_aliases and source it.
 
-if [ "$color_prompt" = yes ]; then
-    PS1='${debian_chroot:($debian_chroot)}\[\033\e[0;33m\w/\n\e[40m\]\e[0;33m\@-\e[1;35m\d\[\033[00m\]\[\033[1;35m\]☠: '
-else
-    PS1='${debian_chroot:+($debian_chroot)}\w/\n\@ \d:☠ '
-fi
-unset color_prompt force_color_prompt
- 
-# If this is an xterm set the title to time and date
-case "$TERM" in
-xterm*|rxvt*)
-    PS1="\[\e]0;${debian_chroot:+($debian_chroot)}\@ \d: ☠ \a\]$PS1"
-    ;;
-*)
-    ;;
-esac
- 
-# enable color support of ls and also add handy aliases
-if [ -x /usr/bin/dircolors ]; then
-    test -r ~/.dircolors && eval "$(dircolors -b ~/.dircolors)" || eval "$(dircolors -b)"
-    alias ls='ls --color=auto'
-    #alias dir='dir --color=auto'
-    #alias vdir='vdir --color=auto'
- 
-    alias grep='grep --color=auto'
-    alias fgrep='fgrep --color=auto'
-    alias egrep='egrep --color=auto'
-fi
- 
-# some more ls aliases
-#alias ll='ls -alF'
-alias la='ls -A'
-alias l='ls -CF'
+alias scmd='fc -ln -1 | sed "s/^\s*//" >> ~/.saved_cmds.txt' # save last command to ~/saved_cmds.txt
+alias rcmd='eval $(fzf < ~/.saved_cmds.txt)' # search through ~/saved_cmds.txt and run selected
 
-# Add an "alert" alias for long running commands.  Use like so:
-#   sleep 10; alert
-alias alert='notify-send --urgency=low -i "$([ $? = 0 ] && echo terminal || echo error)" "$(history|tail -n1|sed -e '\''s/^\s*[0-9]\+\s*//;s/[;&|]\s*alert$//'\'')"'
- 
-# Alias definitions.
-# You may want to put all your additions into a separate file like
-# ~/.bash_aliases, instead of adding them here directly.
-# See /usr/share/doc/bash-doc/examples in the bash-doc package.
- 
-if [ -f ~/.bash_aliases ]; then
-    source ~/.bash_aliases
+# User specific $PATH
+if ! [[ "$PATH" =~ "$HOME/.local/bin:$HOME/bin:" ]]
+then
+    PATH="$HOME/.local/bin:$HOME/bin:$PATH"
 fi
 
-if [ -f ~/.bashrc.d ]; then
-    source ~/.bashrc.d
+#if [[ -n $SSH_CLIENT ]]; then
+#	PS1="\\[\\e[1;32m\\]🟢 $(last | sed -n '2p' | awk '{ print $3 }')\\[\\e[0m\\]\\[\\e[1;33m\\]\n\w/\n\\[\\e[0m\\]\\[\\e[1;31m\\]𝝅 \\[\\e[0m\\]\\[\\e[1;32m\\] "
+#else
+#	ss -tn src :8222 | grep ESTAB &> /dev/null
+#    if [ $? -ne "1" ]; then
+#	PS1="\\[\\e[1;31m\\]🟡 $(lastlog | grep $(whoami) | awk '{ print $3 }')\\[\\e[1;33m\\]\n\w/\n\\[\\e[0m\\]\\[\\e[1;31m\\]𝝅\\[\\e[0m\\]\\[\\e[1;32m\\] "
+#    else
+#	PS1="\\[\\e[1;31m\\]🟢 $(lastlog | grep $(whoami) | awk '{ print $3 }')\\[\\e[1;33m\\]\n\w/\n\\[\\e[0m\\]\\[\\e[1;31m\\]𝝅\\[\\e[0m\\]\\[\\e[1;32m\\] "
+#    fi
+#fi
+PS2=""
+PS4='-[\e[33m${BASH_SOURCE/.sh}\e[0m: \e[32m${LINENO}\e[0m] '
+PS4+='${FUNCNAME[0]:+${FUNCNAME[0]}(): }'
+# Export variables
+export PATH
+HISTSIZE=-1 # unlimited history file
+HISTFILESIZE=-1 # unlimited history file
+HISTCONTROL=ignorespace:ignoredups:erasedups
+shopt -s histappend
+PROMPT_COMMAND="_prompt_command; history -n; history -w; history -c; history -r; $PROMPT_COMMAND"
+export HISTIGNORE=$'[ \t]*:&:[fb]g:[ewr][xcz][iou][try]:ls'
+export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u)/bus"
+export LESS='-i -N -w  -z-4 -g -e -M -X -F -R -P%t?f%f \
+:stdin .?pb%pb\%:?lbLine %lb:?bbByte %bb:-...'
+GREP_COLORS='sl=48;5;234;39;1:cx=48;5;235;91;1:mt=49;91;1:fn=49;91;1:ln=49;38;5;154;1:bn=49;38;5;97;1:se=49;38;5;81;1';
+# Generated by hand, referencing http://linux-sxs.org/housekeeping/lscolors.html
+# and https://geoff.greer.fm/lscolors/
+LS_COLORS='di=1;32:ln=1;30;47:so=30;45:pi=30;45:ex=1;31:bd=30;46:cd=30;46:su=30'
+LS_COLORS="${LS_COLORS};41:sg=30;41:tw=30;41:ow=30;41:*.rpm=1;31:*.deb=1;31"
+LSCOLORS=CxahafafBxagagabababab
+
+export GREP_COLORS LS_COLORS LSCOLORS
+
+# Check for dircolors and if found, process .dircolors
+# This sets up colours for 'ls' via LS_COLORS
+if [[ -z "${LS_COLORS}" ]] && get_command dircolors; then
+  if [[ -r ~/.dircolors ]]; then
+    eval "$(dircolors -b ~/.dircolors)"
+  elif [[ -r /etc/DIR_COLORS ]] ; then
+    eval "$(dircolors -b /etc/DIR_COLORS)"
+  else
+    eval "$(dircolors -b)"
+  fi
 fi
 
-# enable programmable completion features (you don't need to enable
-# this, if it's already enabled in /etc/bash.bashrc and /etc/profile
-# sources /etc/bash.bashrc).
-if [ -f /etc/bash_completion ] && ! shopt -oq posix; then
-    . /etc/bash_completion
-fi
+# LESS man page colors (makes Man pages more readable).
+export LESS_TERMCAP_mb=$'\E[01;31m'
+export LESS_TERMCAP_md=$'\E[01;31m'
+export LESS_TERMCAP_me=$'\E[0m'
+export LESS_TERMCAP_se=$'\E[0m'
+export LESS_TERMCAP_so=$'\E[01;44;33m'
+export LESS_TERMCAP_ue=$'\E[0m'
+export LESS_TERMCAP_us=$'\E[01;32m'
+shopt -s lithist
+shopt -s checkwinsize
+shopt -s globstar
+shopt -s dotglob
+shopt -s cmdhist
+shopt -s autocd
+shopt -s cdspell
 
-echo -ne "${BYellow}";cal
-echo -ne "${BRed}";calendar -f /usr/share/calendar/calendar.BOTW -A 0
-echo -ne "${Cyan}";echo ""
-echo -ne "${BWhite}";calendar -f /usr/share/calendar/calendar.history -A 0
-echo -ne "${Cyan}";echo ""
-echo -ne "${BCyan}";calendar -f /usr/share/calendar/calendar.jokes -A 0
-echo -ne "${Cyan}";echo ""
-echo -ne "${BPurple}";slow-echo "Welcome to $(hostname)...";echo -e "${White}";slow-echo "Logged in as $(whoami)..." 
-echo -ne "${Blue}";echo ""
-echo -ne "${BYellow}";echo "$(fortune)"
-echo -ne "${Green}";echo ""
-echo -ne "${Cyan}";mountedinfo ; echo ""
+# shopt -s dirspell
+# shopt -s complete_fullquote
+# shopt -s execfail
+# shopt -s extquote
+shopt -s force_fignore
+# shopt -s huponexit
+shopt -s nocaseglob
+shopt -s nocasematch
+# shopt -s progcomp
+# shopt -s promptvars
+# shopt -s shift_verbose
+# shopt -s xpg_echo
+alias nano='nano -m'
+
+# set +xeuo pipefail
+set -o notify
+set -o ignoreeof
+clear
+# Uncomment the following line if you don't like systemctl's auto-paging feature:
+# export SYSTEMD_PAGER=
+
+export LESS='FiX'
+#shopt -q login_shell && echo 'Login shell' || echo 'Not login shell'

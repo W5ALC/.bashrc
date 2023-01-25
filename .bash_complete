@@ -1,0 +1,212 @@
+complete -a alias
+complete -A enabled builtin
+complete -A function function
+complete -A helptopic help
+complete -A hostname disk
+complete -A hostname ftp
+complete -A hostname ping
+complete -A hostname rcp
+complete -A hostname rlogin
+complete -A hostname rsh
+complete -A hostname telnet
+complete -A setopt set
+complete -A shopt shopt
+complete -A stopped -P '%' bg
+complete -a unalias
+complete -c type
+complete -c which
+complete -d mkdir
+complete -d rmdir
+complete -e printenv
+complete -F _authselect_completions authselect
+complete -F _command aoss
+complete -F _command command
+complete -F _command do
+complete -F _command else
+complete -F _command eval
+complete -F _command exec
+complete -F _command ltrace
+complete -F _command nice
+complete -F _command nohup
+complete -F _command padsp
+complete -F _command then
+complete -F _command time
+complete -F _command tsocks
+complete -F _command vsound
+complete -F _command xargs
+complete -F _dog dog
+complete -F _gluster_completion gluster
+complete -F _killall killall
+complete -F _killall killps
+complete -F _known_hosts dig
+complete -F _known_hosts fping
+complete -F _known_hosts fping6
+complete -F _known_hosts mtr
+complete -F _known_hosts showmount
+complete -F _known_hosts ssh-installkeys
+complete -F _known_hosts traceroute
+complete -F _known_hosts traceroute6
+complete -F _longopt awk
+complete -F _longopt base64
+complete -F _longopt bc
+complete -F _longopt bison
+complete -F _longopt cat
+complete -F _longopt chroot
+complete -F _longopt colordiff
+complete -F _longopt cp
+complete -F _longopt csplit
+complete -F _longopt cut
+complete -F _longopt date
+complete -F _longopt df
+complete -F _longopt diff
+complete -F _longopt dir
+complete -F _longopt du
+complete -F _longopt enscript
+complete -F _longopt env
+complete -F _longopt expand
+complete -F _longopt fmt
+complete -F _longopt fold
+complete -F _longopt gperf
+complete -F _longopt grep
+complete -F _longopt grub
+complete -F _longopt head
+complete -F _longopt irb
+complete -F _longopt ld
+complete -F _longopt ldd
+complete -F _longopt less
+complete -F _longopt ln
+complete -F _longopt m4
+complete -F _longopt md5sum
+complete -F _longopt mkfifo
+complete -F _longopt mknod
+complete -F _longopt mv
+complete -F _longopt netstat
+complete -F _longopt nl
+complete -F _longopt nm
+complete -F _longopt objcopy
+complete -F _longopt objdump
+complete -F _longopt od
+complete -F _longopt paste
+complete -F _longopt pr
+complete -F _longopt ptx
+complete -F _longopt readelf
+complete -F _longopt rm
+complete -F _longopt sed
+complete -F _longopt seq
+complete -F _longopt sha1sum
+complete -F _longopt sha224sum
+complete -F _longopt sha256sum
+complete -F _longopt sha384sum
+complete -F _longopt sha512sum
+complete -F _longopt shar
+complete -F _longopt shasum
+complete -F _longopt sort
+complete -F _longopt split
+complete -F _longopt strip
+complete -F _longopt sum
+complete -F _longopt tac
+complete -F _longopt tail
+complete -F _longopt tee
+complete -F _longopt texindex
+complete -F _longopt touch
+complete -F _longopt tr
+complete -F _longopt uname
+complete -F _longopt unexpand
+complete -F _longopt uniq
+complete -F _longopt units
+complete -F _longopt vdir
+complete -F _longopt wc
+complete -F _longopt who
+complete -F _minimal ''
+complete -F _ovs_command_complete ovs-appctl
+complete -F _ovs_command_complete ovsdb-tool
+complete -F _ovs_command_complete ovs-dpctl
+complete -F _ovs_command_complete ovs-ofctl
+complete -F _ovs_vsctl_bashcomp ovs-vsctl
+complete -F _root_command fakeroot
+complete -F _root_command gksu
+complete -F _root_command gksudo
+complete -F _root_command kdesudo
+complete -F _root_command really
+complete -F _service /etc/init.d/livesys
+complete -F _service /etc/init.d/livesys-late
+complete -F _service /etc/rc.d/init.d/livesys
+complete -F _service /etc/rc.d/init.d/livesys-late
+complete -F _service service
+complete -F _user_at_host talk
+complete -F _user_at_host ytalk
+complete -j -P '%' disown
+complete -j -P '%' fg
+complete -j -P '%' jobs
+complete -o bashdefault -o default -F _python_argcomplete_global -D
+complete -o bashdefault -o default -o nospace -F _python_argcomplete abrt
+complete -o default -d cd
+complete -o default -F _beesu beesu
+complete -o default -F _longopts a2ps
+complete -o default -F _longopts bash
+complete -o default -F _longopts configure
+complete -o default -F _longopts id
+complete -o default -F _longopts info
+complete -o default -F _longopts ls
+complete -o default -F _longopts recode
+complete -o default -F _longopts wget
+complete -o default -F _tar tar
+complete -o default -f -X '!*.+(bz2|BZ2)' bunzip2
+complete -o default -f -X '*.+(bz2|BZ2)' bzip2
+complete -o default -f -X '!*.+(doc|DOC|xls|XLS|ppt|PPT|sx?|SX?|csv|CSV|od?|OD?|ott|OTT)' soffice
+complete -o default -f -X '!*.+(dvi|DVI)' dvipdf
+complete -o default -f -X '!*.+(dvi|DVI)' dvips
+complete -o default -f -X '!*.+(dvi|DVI)' dviselect
+complete -o default -f -X '!*.+(dvi|DVI)' dvitype
+complete -o default -f -X '!*.+(dvi|DVI)' xdvi
+complete -o default -f -X '!*.@(@(?(e)ps|?(E)PS|pdf|PDF)?(.gz|.GZ|.bz2|.BZ2|.Z))' ggv
+complete -o default -f -X '!*.@(@(?(e)ps|?(E)PS|pdf|PDF)?(.gz|.GZ|.bz2|.BZ2|.Z))' gv
+complete -o default -f -X '!*.+(gif|GIF|jp*g|JP*G|bmp|BMP|xpm|XPM|png|PNG)' ee
+complete -o default -f -X '!*.+(gif|GIF|jp*g|JP*G|bmp|BMP|xpm|XPM|png|PNG)' gimp
+complete -o default -f -X '!*.+(gif|GIF|jp*g|JP*G|bmp|BMP|xpm|XPM|png|PNG)' gqview
+complete -o default -f -X '!*.+(gif|GIF|jp*g|JP*G|bmp|BMP|xpm|XPM|png|PNG)' xv
+complete -o default -f -X '!*.+(gz|GZ)' gunzip
+complete -o default -f -X '*.+(gz|GZ)' gzip
+complete -o default -f -X '!*.+(htm*|HTM*)' html2ps
+complete -o default -f -X '!*.+(htm*|HTM*)' lynx
+complete -o default -f -X '!*.lyx' lyx
+complete -o default -f -X '!*.@(mp[23]|MP[23]|ogg|OGG|wav|WAV|pls|m3u|xm|mod|s[3t]m|it|mtm|ult|flac)' xmms
+complete -o default -f -X '!*.+(mp3|MP3)' mpg123
+complete -o default -f -X '!*.+(mp3|MP3)' mpg321
+complete -o default -f -X '!*.@(mp?(e)g|MP?(E)G|wma|avi|AVI|asf|vob|VOB|bin|dat|vcd|ps|pes|fli|viv|rm|ram|yuv|mov|MOV|qt|QT|wmv|mp3|MP3|ogg|OGG|ogm|OGM|mp4|MP4|wav|WAV|asx|ASX)' xine
+complete -o default -f -X '!*.+(ogg|OGG)' ogg123
+complete -o default -f -X '!*.+(pdf|PDF)' acroread
+complete -o default -f -X '!*.+(pdf|PDF)' pdf2ps
+complete -o default -f -X '!*.pl' perl
+complete -o default -f -X '!*.pl' perl5
+complete -o default -f -X '!*.+(ps|PS)' ghostview
+complete -o default -f -X '!*.+(ps|PS)' gs
+complete -o default -f -X '!*.+(ps|PS)' ps2ascii
+complete -o default -f -X '!*.+(ps|PS)' ps2pdf
+complete -o default -f -X '!*.texi*' makeinfo
+complete -o default -f -X '!*.texi*' texi2dvi
+complete -o default -f -X '!*.texi*' texi2html
+complete -o default -f -X '!*.texi*' texi2pdf
+complete -o default -f -X '!*.tex' latex
+complete -o default -f -X '!*.tex' slitex
+complete -o default -f -X '!*.tex' tex
+complete -o default -f -X '!*.+(zip|ZIP)' unzip
+complete -o default -f -X '*.+(zip|ZIP)' zip
+complete -o default -f -X '!*.+(zip|ZIP|z|Z|gz|GZ|bz2|BZ2)' extract
+complete -o default -f -X '*.+(z|Z)' compress
+complete -o default -f -X '!*.+(z|Z)' uncompress
+complete -o nospace -F _cd pushd
+complete -u finger
+complete -u groups
+complete -u mail
+complete -u slay
+complete -u su
+complete -u sux
+complete -u w
+complete -v export
+complete -v local
+complete -v readonly
+complete -v unset
+complete -X '+($*|*.[cho])' -F _make gmake
+complete -X '+($*|*.[cho])' -F _make make
+complete -X '+($*|*.[cho])' -F _make pmake
