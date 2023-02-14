@@ -329,9 +329,9 @@ alt_h() {
   fi
 
   if get_command tldr; then
-    tldr "${_alth_lookup_cmd}"
+   pman "${_alth_lookup_cmd}" && tldr "${_alth_lookup_cmd}"
   else
-    man "${_alth_lookup_cmd}"
+    pman "${_alth_lookup_cmd}"
   fi
 }
 
@@ -341,6 +341,272 @@ bind -x '"\eh":alt_h'
 ################ Begin gpg functions ##################
 #######################################################
 
+################################################################################
+# genpasswd password generator
+################################################################################
+# Password generator function for when 'pwgen' or 'apg' aren't available
+# Koremutake mode inspired by:
+# https:#raw.githubusercontent.com/lpar/kpwgen/master/kpwgen.go
+# http://shorl.com/koremutake.php
+genpasswd() {
+  export LC_CTYPE=C
+  # localise variables for safety
+  local OPTIND pwdChars pwdDigit pwdNum pwdSet pwdKoremutake pwdUpper \
+    pwdSpecial pwdSpecialChars pwdSyllables n t u v tmpArray
+  # Default the vars
+  pwdChars=10
+  pwdDigit="false"
+  pwdNum=1
+  pwdSet="[:alnum:]"
+  pwdKoremutake="false"
+  pwdUpper="false"
+  pwdSpecial="false"
+  # shellcheck disable=SC1001
+  pwdSpecialChars=(\! \@ \# \$ \% \^ \( \) \_ \+ \? \> \< \~)
+  # Filtered koremutake syllables
+  # http:#shorl.com/koremutake.php
+  pwdSyllables=( ba be bi bo bu by da de di 'do' du dy fe 'fi' fo fu fy ga ge \
+    gi go gu gy ha he hi ho hu hy ja je ji jo ju jy ka ke ko ku ky la le li \
+    lo lu ly ma me mi mo mu my na ne ni no nu ny pa pe pi po pu py ra re ri \
+    ro ru ry sa se si so su sy ta te ti to tu ty va ve vi vo vu vy bra bre \
+    bri bro bru bry dra dre dri dro dru dry fra fre fri fro fru fry gra gre \
+    gri gro gru gry pra pre pri pro pru pry sta ste sti sto stu sty tra tre \
+    er ed 'in' ex al en an ad or at ca ap el ci an et it ob of af au cy im op \
+    co up ing con ter com per ble der cal man est 'for' mer col ful get low \
+    son tle day pen pre ten tor ver ber can ple fer gen den mag sub sur men \
+    min out tal but cit cle cov dif ern eve hap ket nal sup ted tem tin tro
+  )
+  while getopts ":c:DhKn:SsUY" Flags; do
+    case "${Flags}" in
+      (c)  pwdChars="${OPTARG}";;
+      (D)  pwdDigit="true";;
+      (h)  printf -- '%s\n' "" "genpasswd - a poor sysadmin's pwgen" \
+             "" "Usage: genpasswd [options]" "" \
+             "Optional arguments:" \
+             "-c [Number of characters. Minimum is 4. (Default:${pwdChars})]" \
+             "-D [Require at least one digit (Default:off)]" \
+             "-h [Help]" \
+             "-K [Koremutake mode.  Uses syllables rather than characters, meaning more phonetical pwds." \
+             "    Note: In this mode, character counts = syllable count and different defaults are used]" \
+             "-n [Number of passwords (Default:${pwdNum})]" \
+             "-s [Strong mode, seeds a limited amount of special characters into the mix (Default:off)]" \
+             "-S [Stronger mode, complete mix of characters (Default:off)]" \
+             "-U [Require at least one uppercase character (Default:off)]" \
+             "-Y [Require at least one special character (Default:off)]" \
+             "" "Note1: Broken Pipe errors, (older bash versions) can be ignored" \
+             "Note2: If you get umlauts, cyrillic etc, export LC_ALL= to something like en_US.UTF-8"
+           return 0;;
+      (K)  pwdKoremutake="true";;
+      (n)  pwdNum="${OPTARG}";;
+      # Attempted to randomise special chars using 7 random chars from [:punct:] but reliably
+      # got "reverse collating sequence order" errors.  Seeded 9 special chars manually instead.
+      (s)  pwdSet="[:alnum:]#$&+/<}^%@";;
+      (S)  pwdSet="[:graph:]";;
+      (U)  pwdUpper="true";;
+      (Y)  pwdSpecial="true";;
+      (\?)  printf -- '%s\n' "[ERROR] genpasswd: Invalid option: $OPTARG.  Try 'genpasswd -h' for usage." >&2
+            return 1;;
+      (:)  echo "[ERROR] genpasswd: Option '-$OPTARG' requires an argument, e.g. '-$OPTARG 5'." >&2
+           return 1;;
+    esac
+  done
+  # We need to check that the character length is more than 4 to protect against
+  # infinite loops caused by the character checks.  i.e. 4 character checks on a 3 character password
+  if (( pwdChars < 4 )); then
+    printf -- '%s\n' "[ERROR] genpasswd: Password length must be greater than four characters." >&2
+    return 1
+  fi
+  if [[ "${pwdKoremutake}" = "true" ]]; then
+    for (( i=0; i<pwdNum; i++ )); do
+      n=0
+      for int in $(get-randint "${pwdChars:-7}" 1 $(( ${#pwdSyllables[@]} - 1 )) ); do
+        tmpArray[n]=$(printf -- '%s\n' "${pwdSyllables[int]}")
+        (( n++ ))
+      done
+      read -r t u v < <(get-randint 3 0 $(( ${#tmpArray[@]} - 1 )) | paste -s -)
+      #pwdLower is effectively guaranteed, so we skip it and focus on the others
+      if [[ "${pwdUpper}" = "true" ]]; then
+        tmpArray[t]=$(capitalise "${tmpArray[t]}")
+      fi
+      if [[ "${pwdDigit}" = "true" ]]; then
+        while (( u == t )); do
+          u="$(get-randint 1 0 $(( ${#tmpArray[@]} - 1 )) )"
+        done
+        tmpArray[u]="$(get-randint 1 0 9)"
+      fi
+      if [[ "${pwdSpecial}" = "true" ]]; then
+        while (( v == t )); do
+          v="$(get-randint 1 0 $(( ${#tmpArray[@]} - 1 )) )"
+        done
+        randSpecial=$(get-randint 1 0 $(( ${#pwdSpecialChars[@]} - 1 )) )
+        tmpArray[v]="${pwdSpecialChars[randSpecial]}"
+      fi
+      printf -- '%s\n' "${tmpArray[@]}" | paste -sd '\0' -
+    done
+  else
+    for (( i=0; i<pwdNum; i++ )); do
+      n=0
+      while read -r; do
+        tmpArray[n]="${REPLY}"
+        (( n++ ))
+      done < <(tr -dc "${pwdSet}" < /dev/urandom | tr -d ' ' | fold -w 1 | head -n "${pwdChars}")
+      read -r t u v < <(get-randint 3 0 $(( ${#tmpArray[@]} - 1 )) | paste -s -)
+      #pwdLower is effectively guaranteed, so we skip it and focus on the others
+      if [[ "${pwdUpper}" = "true" ]]; then
+        if ! printf -- '%s\n' "tmpArray[@]}" | grep "[A-Z]" >/dev/null 2>&1; then
+          tmpArray[t]=$(capitalise "${tmpArray[t]}")
+        fi
+      fi
+      if [[ "${pwdDigit}" = "true" ]]; then
+        while (( u == t )); do
+          u="$(get-randint 1 0 $(( ${#tmpArray[@]} - 1 )) )"
+        done
+        if ! printf -- '%s\n' "tmpArray[@]}" | grep "[0-9]" >/dev/null 2>&1; then
+          tmpArray[u]="$(get-randint 1 0 9)"
+        fi
+      fi
+      # Because special characters aren't sucked up from /dev/urandom,
+      # we have no reason to test for them, just swap one in
+      if [[ "${pwdSpecial}" = "true" ]]; then
+        while (( v == t )); do
+          v="$(get-randint 1 0 $(( ${#tmpArray[@]} - 1 )) )"
+        done
+        randSpecial=$(get-randint 1 0 $(( ${#pwdSpecialChars[@]} - 1 )) )
+        tmpArray[v]="${pwdSpecialChars[randSpecial]}"
+      fi
+      printf -- '%s\n' "${tmpArray[@]}" | paste -sd '\0' -
+    done
+  fi
+}
+
+################################################################################
+# A separate password encryption tool, so that you can encrypt passwords of your own choice
+
+cryptpasswd() {
+  local inputPwd pwdSalt pwdKryptMode
+  # If $1 is blank, print usage
+  if [[ -z "${1}" ]]; then
+    printf -- '%s\n' "" "cryptpasswd - a tool for hashing passwords" "" \
+    "Usage: cryptpasswd [password to hash] [1|5|6|n]" \
+    "    Crypt method can be set using one of the following options:" \
+    "    '1' (MD5, default)" \
+    "    '5' (SHA256)" \
+    "    '6' (SHA512)" \
+    "    'n' (NTLM)"
+    return 0
+  # Otherwise, assign our base variables
+  else
+    inputPwd="${1}"
+    pwdSalt=$(tr -dc '[:alnum:]' < /dev/urandom | tr -d ' ' | fold -w 8 | head -n 1 | tolower) 2> /dev/null
+  fi
+  # We don't want to mess around with other options like bcrypt as it
+  # requires more error handling than I can be bothered with
+  # If the crypt mode isn't defined as 1, 5, 6 or n: default to 1
+  case "${2}" in
+    (n)
+      printf -- '%s' "${inputPwd}" \
+        | iconv -t utf16le \
+        | openssl md4 \
+        | awk '{print $2}' \
+        | toupper
+      return "$?"
+    ;;
+    (*)
+      case "${2}" in
+        (1|5|6) pwdKryptMode="${2}";;
+        (*)     pwdKryptMode=1;;        # Default to MD5
+      esac
+      if get_command python; then
+        #python -c 'import crypt; print(crypt.crypt('${inputPwd}', crypt.mksalt(crypt.METHOD_SHA512)))'
+        python -c "import crypt; print crypt.crypt('${inputPwd}', '\$${pwdKryptMode}\$${pwdSalt}')"
+      elif get_command perl; then
+        perl -e "print crypt('${inputPwd}','\$${pwdKryptMode}\$${pwdSalt}\$')"
+      elif get_command openssl; then
+        printf -- '%s\n' "This was handled by OpenSSL which is only MD5 capable." >&2
+        openssl passwd -1 -salt "${pwdSalt}" "${inputPwd}"
+      else
+        printf -- '%s\n' "No available method for this task" >&2
+        return 1
+      fi
+    ;;
+  esac
+}
+
+genphrase() {
+  # Requires bash4 or newer and shuf
+  # There is an older, more portable version of this available in my git history (pre 01/23)
+  (( BASH_VERSINFO < 4 )) && {
+    printf -- '%s\n' "genphrase(): bash 4 or newer required"
+    return 1
+  }
+  command -v shuf >/dev/null 2>&1 || {
+    printf -- '%s\n' "genphrase(): 'shuf' required but not found in PATH"
+    return 1
+  }
+  # First, double check that the dictionary file exists.
+  if [[ ! -f ~/.pwords.dict ]] ; then
+    # Test if we can download our wordlist, otherwise use the standard 'words' file to generate something usable
+    if ! wget -T 2 https://raw.githubusercontent.com/rawiriblundell/dotfiles/master/.pwords.dict -O ~/.pwords.dict &>/dev/null; then
+      # Alternatively, we could just use grep -v "[[:punct:]]", but we err on the side of portability
+      LC_COLLATE=C grep -Eh '^[A-Za-z].{3,9}$' /usr/{,share/}dict/words 2>/dev/null | grep -v "'" > ~/.pwords.dict
+    fi
+  fi
+  # localise our vars for safety
+  local OPTIND delimiter phrase_words phrase_num phrase_seed seed_word total_words
+  # Default the vars
+  delimiter='\0'
+  phrase_words=4
+  phrase_num=1
+  phrase_seed="False"
+  seed_word=
+  while getopts ":d:hn:s:w:" Flags; do
+    case "${Flags}" in
+      (d) delimiter="${OPTARG}" ;;
+      (h)
+        printf -- '%s\n' "" "genphrase - a basic passphrase generator" \
+          "" "Optional Arguments:" \
+          "    -d Delimiter.  Note: Quote special chars. (Default: none)" \
+          "    -h Help" \
+          "    -n Number of passphrases to generate (Default: ${phrase_num})" \
+          "    -s Seed your own word" \
+          "    -w Number of random words to use (Default: ${phrase_words})" ""
+        return 0
+      ;;
+      (n)  phrase_num="${OPTARG}" ;;
+      (s)  phrase_seed="True"; seed_word="${OPTARG}" ;;
+      (w)  phrase_words="${OPTARG}";;
+      (:)
+        printf -- "Option '%s' requires an argument. e.g. '%s 10'\n" "-${OPTARG}" "-${OPTARG}" >&2
+        return 1
+      ;;
+      (*)
+        printf -- "Unrecognised argument: '%s'\n" "-${OPTARG}.  Try 'genphrase -h' for usage." >&2
+        return 1
+      ;;
+    esac
+  done
+
+  # Next test if a word is being seeded in, if so, make space for the seed word
+  [[ "${phrase_seed}" = "True" ]] && (( phrase_words = phrase_words - 1 ))
+  # Calculate the total number of words we might process
+  total_words=$(( phrase_words * phrase_num ))
+
+  # Now generate the passphrase(s)
+  # Use 'shuf' to pull our complete number of random words from the dict
+  # Use 'awk' to word wrap to '$phrase_words' per line
+  # Then parse each line through this while loop
+  while read -r; do
+    # Convert the line to an array and add any seed word
+    # This allows us to capitalise each word and randomise the seed location
+    # shellcheck disable=SC2206 # We want REPLY to word-split
+    lineArray=( ${seed_word} ${REPLY} )
+    shuf -e "${lineArray[@]^}" | paste -sd "${delimiter}" -
+  done < <(
+    shuf -n "${total_words}" ~/.pwords.dict |
+      awk -v w="${phrase_words}" 'ORS=NR%w?FS:RS'
+    )
+  return 0
+}
 
 function encrypt ()
 {
@@ -391,7 +657,7 @@ read -p "Hit enter to exit" temp; clear
 function encryptfile ()
 {
 zenity --title="zcrypt: Select a file to encrypt" --file-selection > zcrypt
-encryptthisfile=`cat zcrypt`;rm zcrypt
+encryptthisfile=$(cat zcrypt);rm zcrypt
 # Use ascii armor
 #  --no-options (for NO gui usage)
 gpg -acq --yes ${encryptthisfile}
@@ -402,7 +668,7 @@ encrypted"
 function decryptfile ()
 {
 zenity --title="zcrypt: Select a file to decrypt" --file-selection > zcrypt
-decryptthisfile=`cat zcrypt`;rm zcrypt
+decryptthisfile=$(cat zcrypt);rm zcrypt
 # NOTE: This will OVERWRITE existing files with the same name !!!
 gpg --yes -q ${decryptthisfile}
 zenity --info --title "File Decrypted" --text "$encryptthisfile has been
@@ -417,31 +683,11 @@ decrypted"
 ################ Start misc functions #################
 #######################################################
 
-function confirm() {
-    read -p "Are you sure you want to $1? (y/n): " -n 1 -r REPLY
-	echo -e "\n"
-	if [[ $REPLY =~ ^[Yy]$ ]]; then
-		return 0
-	else
-		return 1
-	fi
-}
-
-function failure() {
-    ERR="$1"
-    echo -e "\e[01;31m* $ERR\e[0m" 1>&2
-}
-
-function success() {
-    MSG="$1"
-    echo -e "\e[01;32m* $MSG\e[0m"
-}
-
 function allcolors() {
     # credit to http://askubuntu.com/a/279014
     for x in 0 1 4 5 7 8; do
-        for i in `seq 30 37`; do
-            for a in `seq 40 47`; do
+        for i in $(seq 30 37); do
+            for a in $(seq 40 47); do
                 echo -ne "\e[$x;$i;$a""m\\\e[$x;$i;$a""m\e[0;37;40m "
             done
             echo
@@ -463,38 +709,6 @@ echo -ne "${RED}\b+${NC}"
 #######################################################
 ################## End misc functions #################
 #######################################################
-
-
-#-------------------------------------------------------------
-# A few fun ones
-#-------------------------------------------------------------
-
-# Adds some text in the terminal frame (if applicable).
-
-function xtitle()
-{
-    case "$TERM" in
-    *term* | rxvt)
-        echo -en  "\e]0;$*\a" ;;
-    *)  ;;
-    esac
-}
-
-
-# Aliases that use xtitle
-alias top='xtitle Processes on $HOST && top'
-alias make='xtitle Making $(basename $PWD) ; make'
-
-
-# .. and functions
-function man()
-{
-    for i ; do
-        xtitle The $(basename $1|tr -d .[:digit:]) manual
-        command man -a "$i"
-    done
-}
-
 
 function overview() {
 	du -h --max-depth=1 | sed -r '
@@ -522,6 +736,19 @@ function xpdf() { command xpdf "$@" & }
 #######################################################
 ################ Start file functions #################
 #######################################################
+
+compress() {
+  File=$1
+  shift
+  case "${File}" in
+    (*.tar.bz2) tar cjf "${File}" "$@"  ;;
+    (*.tar.gz)  tar czf "${File}" "$@"  ;;
+    (*.tgz)     tar czf "${File}" "$@"  ;;
+    (*.zip)     zip "${File}" "$@"      ;;
+    (*.rar)     rar "${File}" "$@"      ;;
+    (*)         echo "Filetype not recognized" ;;
+  esac
+}
 
 function maketarbz() {
     # export TAR_OPTS="--auto-compress --one-file-system --quoting-style='literal' --utc --verbose --deference --compress --totals=SIGQUIT --ignore-failed-read --seek --wildcards --no-acls --no-selinux --no-xattrs --verify"
@@ -825,6 +1052,26 @@ function stop() {
     fi
 }
 
+function confirm() {
+    read -p "Are you sure you want to $1? (y/n): " -n 1 -r REPLY
+	echo -e "\n"
+	if [[ $REPLY =~ ^[Yy]$ ]]; then
+		return 0
+	else
+		return 1
+	fi
+}
+
+function failure() {
+    ERR="$1"
+    echo -e "\e[01;31m* $ERR\e[0m" 1>&2
+}
+
+function success() {
+    MSG="$1"
+    echo -e "\e[01;32m* $MSG\e[0m"
+}
+
 
 #######################################################
 ############### End systemd functions #################
@@ -898,10 +1145,6 @@ function freespace() {
     for job in $(jobs -p); do
         wait -n "$job"
     done
-}
-
-function latlong() {
-    curl http://ipinfodb.com 2>/dev/null | perl -0777 -nE 'm/Latitude : (-?\d+\.\d+).+?Longitude : (-?\d+\.\d+)/ms; say "$1:$2" if $1 and $2'
 }
 
 function pdfshrink() {
@@ -1086,48 +1329,6 @@ function mach()
 
 
 
-
-function weather1(){ curl -s "http://api.wunderground.com/auto/wui/geo/ForecastXML/index.xml?query=${@:-<YOURZIPORLOCATION>}"|perl -ne '/<title>([^<]+)/&&printf "%s: ",$1;/<fcttext>([^<]+)/&&print $1,"\n"';}
-
-
-#Translate a Word  - USAGE: translate house spanish  # See dictionary.com for available languages (there are many).
-function translate ()
-{
-TRANSLATED=`lynx -dump "http://dictionary.reference.com/browse/${1}" | grep -i -m 1 -w "${2}:" | sed 's/^[ \t]*//;s/[ \t]*$//'`
-if [[ ${#TRANSLATED} != 0 ]] ;then
-    echo "\"${1}\" in ${TRANSLATED}"
-    else
-    echo "Sorry, I can not translate \"${1}\" to ${2}"
-fi
-}
-
-function translate ()
-{
-spanish='es'
-SPANISH='spanish'
-TRANSLATED='lynx -dump "https://www.wordreference.com/${2}/translation.asp?tranword=${1}" | grep -i -m 1 -w "${2}:" | sed 's/^[ \t]*//;s/[ \t]*$//''
-if [[ ${#TRANSLATED} != 0 ]] ;then
-    echo "\"${1}\" in ${TRANSLATED}"
-    else
-    echo "Sorry, I can not translate \"${1}\" to ${2}"
-fi
-}
-
-
-function define ()
-{
-lynx -dump "http://www.google.com/search?hl=en&q=define%3A+'${1}'&btnG=Google+Search" | grep -m 3 -w "*"  | sed 's/;/ -/g' | cut -d- -f1 > /tmp/templookup.txt
-            if [[ -s  /tmp/templookup.txt ]] ;then
-                until ! read response
-                    do
-                    echo "${response}"
-                    done < /tmp/templookup.txt
-                else
-                    echo "Sorry $USER, I can't find the term \"${1}\""
-            fi
-rm -f /tmp/templookup.txt
-}
-
 function dirsize ()
 {
 du -shx * .[a-zA-Z0-9_]* 2> /dev/null | \
@@ -1135,12 +1336,6 @@ egrep '^ *[0-9.]*[MG]' | sort -n > /tmp/list
 egrep '^ *[0-9.]*M' /tmp/list
 egrep '^ *[0-9.]*G' /tmp/list
 rm /tmp/list
-}
-
-#clock - A bash clock that can run in your terminal window.
-function clock ()
-{
-while true;do clear;echo "===========";date +"%r";echo "===========";sleep 1;done
 }
 
 #shot - takes a screenshot of your current window
@@ -1213,7 +1408,7 @@ function fun {
 
 function ryt ()
 {
-printf '%s\n' "$*" | pv -qL $[11+(-1 + RANDOM%5)] ; printf "\n"
+printf '%s\n' "$@" | pv -qL $[11+(-1 + RANDOM%5)] ; printf "\n"
 }
 
 if get_command pbcopy; then
@@ -1304,7 +1499,7 @@ pman() {
       mantext=$(mktemp)
       man -t "${@}" | ps2pdf - > "${mantext}"
       (
-        evince "${mantext}"
+        atril "${mantext}"
         rm -f "${mantext}" 2>/dev/null
       )
     ;;
@@ -1397,3 +1592,31 @@ rolesetup() {
   fi
 }
 
+get_command() {
+  local errcount cmd
+  case "${1}" in
+    (-v|--verbose)
+      shift 1
+      errcount=0
+      for cmd in "${@}"; do
+        command -v "${cmd}" ||
+          { printf -- '%s\n' "${cmd} not found" >&2; (( ++errcount )); }
+      done
+      (( errcount == 0 )) && return 0
+    ;;
+    ('')
+      printf -- '%s\n' "get_command [-v|--verbose] list of commands" \
+        "get_command will emit return code 1 if any listed command is not found" >&2
+      return 0
+    ;;
+    (*)
+      errcount=0
+      for cmd in "${@}"; do
+        command -v "${1}" >/dev/null 2>&1 || (( ++errcount ))
+      done
+      (( errcount == 0 )) && return 0
+    ;;
+  esac
+  # If we get to this point, we've failed
+  return 1
+}

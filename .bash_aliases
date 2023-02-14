@@ -86,6 +86,4 @@ alias unt='tar -zxvf'
 alias wgetc='wget -c'
 alias x='chmod u+x'
 alias youtube='yt-dlp --extract-audio --audio-format mp3 --audio-quality 0 --prefer-ffmpeg'
-
-
 alias funderscores="find . -name \"* *\" -type f | /usr/local/bin/rename 's/ /_/g'"

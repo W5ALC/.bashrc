@@ -22,57 +22,58 @@ done
 unset dotfiles; unset -v dotfile
 
 # This will show if there is an active SSH connection after each command is executed.
-ssh_psONE() # Shows login before last of current user; best used with AllowUsers in sshd_config
+psONE_ssh()
 {
-if [[ "$(last | sed -n '2p' | awk '{ print $3 }')" =~ ("172.58."*|"67.190.156.142"|"10.0.0.83"|"10.0.2.2") ]]; then
-printf %b "\\[\\e[1;32m\\]My Phone\n"
+if [[ "$(last | sed -n '2p' | awk '{ print $3 }')" =~ ("172.58."*|"67.190.156.142"|"10.0.0.11"|"10.0.2.2") ]]; then
+printf %b "\\[\\e[1;32m\\]✓\n"
 else
 last | sed -n '2p' | awk '{ print $3 }'
 fi
 }
 
-localpsONE() # Shows the last login from the current user; best used with AllowUsers in sshd_config
+psONE_local() # Shows the last login from the current user; best used with AllowUsers in sshd_config
 {
-if [[ "$(lastlog | grep $(whoami) | awk '{ print $3 }')" =~ ("172.58."*|"67.190.156.142"|"10.0.0.83"|"10.0.2.2") ]]; then
-printf %b "\\[\\e[1;32m\\]My Phone\n"
+if [[ "$(lastlog | grep $(whoami) | awk '{ print $3 }')" =~ ("172.58."*|"67.190.156.142"|"10.0.0.11"|"10.0.2.2") ]]; then
+printf %b "\\[\\e[1;32m\\]✓\n"
 else
 lastlog | grep $(whoami) | awk '{ print $3 }'
 fi
 }
+
+_prompt_command()
+{
 if [[ -n $SSH_CLIENT ]]; then
-	PS1="\\[\\e[1;31m\\]🟢 $(ssh_psONE)\\[\\e[0m\\]\\[\\e[1;33m\\]\n\w/\n\\[\\e[0m\\]\\[\\e[1;31m\\]𝝅 \\[\\e[0m\\]\\[\\e[1;32m\\] "
+	PS1="\\[\\e[1;31m\\]🟢 $(psONE_ssh)\\[\\e[0m\\]\\[\\e[1;33m\\]\n\w/\n\\[\\e[0m\\]\\[\\e[1;31m\\]𝝅 \\[\\e[0m\\]\\[\\e[1;32m\\] "
 else
 	ss -tn src :8222 | grep ESTAB &> /dev/null
     if [ $? -ne "1" ]; then
-	PS1="\\[\\e[1;31m\\]🟢 $(localpsONE)\\[\\e[1;33m\\]\n\w/\n\\[\\e[0m\\]\\[\\e[1;31m\\]𝝅\\[\\e[0m\\]\\[\\e[1;32m\\] "
+	PS1="\\[\\e[1;31m\\]🟢 $(psONE_local)\\[\\e[1;33m\\]\n\w/\n\\[\\e[0m\\]\\[\\e[1;31m\\]𝝅\\[\\e[0m\\]\\[\\e[1;32m\\] "
     else
-	PS1="\\[\\e[1;31m\\]🔴 $(localpsONE)\\[\\e[1;33m\\]\n\w/\n\\[\\e[0m\\]\\[\\e[1;31m\\]𝝅\\[\\e[0m\\]\\[\\e[1;32m\\] "
-    fi
-fi}
+	PS1="\\[\\e[1;31m\\]🔴 $(psONE_local)\\[\\e[1;33m\\]\n\w/\n\\[\\e[0m\\]\\[\\e[1;31m\\]𝝅\\[\\e[0m\\]\\[\\e[1;32m\\] "
+fi
+fi
+}
+# This will show if there is an active SSH connection after each command is executed.
+
+
+
 
 alias bashr="nano ~/.bashrc && source ~/.bashrc" # edit .bashrc and source it.
 alias bashf="nano ~/.bash_functions && source ~/.bash_functions" # edit .bash_functions and source it.
 alias basha="nano ~/.bash_aliases && source ~/.bash_aliases" # edit .bash_aliases and source it.
-
+alias bashru="source ~/.bashrc" # source .bashrc.
+alias bashfu="source ~/.bash_functions" # source .bash_functions.
+alias bashau="source ~/.bash_aliases" # source .bash_aliases.
 alias scmd='fc -ln -1 | sed "s/^\s*//" >> ~/.saved_cmds.txt' # save last command to ~/saved_cmds.txt
 alias rcmd='eval $(fzf < ~/.saved_cmds.txt)' # search through ~/saved_cmds.txt and run selected
 
 # User specific $PATH
-if ! [[ "$PATH" =~ "$HOME/.local/bin:$HOME/bin:" ]]
+if ! [[ "$PATH" =~ "$HOME/.local/bin:/run/media/nowhereman/5c272246-9fa8-4671-a436-966b50f58f86/nowhereman/bin:$HOME/bin:" ]]
 then
-    PATH="$HOME/.local/bin:$HOME/bin:$PATH"
+    PATH="$HOME/.local/bin:/run/media/nowhereman/5c272246-9fa8-4671-a436-966b50f58f86/nowhereman/bin:$HOME/bin:$PATH"
 fi
 
-#if [[ -n $SSH_CLIENT ]]; then
-#	PS1="\\[\\e[1;32m\\]🟢 $(last | sed -n '2p' | awk '{ print $3 }')\\[\\e[0m\\]\\[\\e[1;33m\\]\n\w/\n\\[\\e[0m\\]\\[\\e[1;31m\\]𝝅 \\[\\e[0m\\]\\[\\e[1;32m\\] "
-#else
-#	ss -tn src :8222 | grep ESTAB &> /dev/null
-#    if [ $? -ne "1" ]; then
-#	PS1="\\[\\e[1;31m\\]🟡 $(lastlog | grep $(whoami) | awk '{ print $3 }')\\[\\e[1;33m\\]\n\w/\n\\[\\e[0m\\]\\[\\e[1;31m\\]𝝅\\[\\e[0m\\]\\[\\e[1;32m\\] "
-#    else
-#	PS1="\\[\\e[1;31m\\]🟢 $(lastlog | grep $(whoami) | awk '{ print $3 }')\\[\\e[1;33m\\]\n\w/\n\\[\\e[0m\\]\\[\\e[1;31m\\]𝝅\\[\\e[0m\\]\\[\\e[1;32m\\] "
-#    fi
-#fi
+
 PS2=""
 PS4='-[\e[33m${BASH_SOURCE/.sh}\e[0m: \e[32m${LINENO}\e[0m] '
 PS4+='${FUNCNAME[0]:+${FUNCNAME[0]}(): }'
