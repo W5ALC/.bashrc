@@ -1,30 +1,47 @@
-#.bash_aliases
-
+# Navigation Aliases
 alias ..='cd ..'
 alias ...='cd ../..'
 alias ....='cd ../../..'
 alias .....='cd ../../../..'
+
+# File Permissions Aliases
 alias 000='chmod 000'
 alias 644='chmod 644'
 alias 755='chmod 755'
-alias authcode='jq -r '.activation_bytes' ~/.audible/home.json'
+
+# Audible Aliases
+alias authcode='jq -r ".activation_bytes" ~/.audible/home.json'
 alias audilist='audible library list'
 alias audiload='audible download --aax-fallback --chapter --annotation --pdf --output-dir ~/Audiobook -a $1'
+
+# System Management Aliases
 alias c='clear'
-alias da='date "+%Y-%m-%d %A    %T %Z"'
-alias install='sudo dnf install'
-alias droid='ssh -p 8022 u0_a226@10.0.0.241'
-alias du1='du -h --max-depth=1'
-alias dunderscores="find . -name \"* *\" -type d | /usr/local/bin/rename 's/ /_/g'"
-alias ebrc='pico ~/.bashrc'
-alias {e,w,r}{c,x,z}{i,o,u}{t,r,y}='exit'
-alias egrep='egrep --color=auto'
-alias fgrep='fgrep --color=auto'
-alias go='sudo apt install -y'
-alias grep='grep --color=auto'
+alias da='date "+%A %m-%d-%Y %T %Z"'
+#alias install='sudo dnf install -y'
+#alias search='dnf search'
+#alias list='dnf list installed'
+#alias update='sudo dnf update -y'
 alias halt='sudo /sbin/halt'
-alias hdd='cd /run/media/nowhereman/5c272246-9fa8-4671-a436-966b50f58f86/nowhereman'
-alias homestart='systemd-run --user "$1"'
+alias reboot='sudo /sbin/reboot'
+alias shutdown='sudo /sbin/shutdown'
+
+# File and Directory Operations Aliases
+alias du1='du -h --max-depth=1'
+alias funderscores="find . -name '* *' -type f | /usr/local/bin/rename 's/ /_/g'"
+alias dunderscores="find . -name '* *' -type d | /usr/local/bin/rename 's/ /_/g'"
+alias l.='ls -d .* --color=auto'
+alias la='ls -Al'
+alias lc='ls -lcr'
+alias lk='ls -lSr'
+alias ll='cd /media/nowhereman/nowhereman/Linux/Linux-Learn'
+alias lr='ls -lR'
+alias ls='ls -X --format=single-column'
+alias lt='ls -ltr'
+alias lu='ls -lur'
+alias lx='ls -lXB'
+alias hdd='cd /media/nowhereman/nowhereman/'
+
+# Kubernetes Aliases
 alias k='kubectl'
 alias ka='kubectl apply -f'
 alias kdesc='kubectl describe'
@@ -41,49 +58,44 @@ alias kpv='kubectl get pv'
 alias kpvc='kubectl get pvc'
 alias ksc='kubectl scale'
 alias ktp='kubectl top'
-alias l.='ls -d .* --color=auto'
-alias la='ls -Al'
-alias lc='ls -lcr'
-alias lk='ls -lSr'
-alias ll='cd /run/media/nowhereman/5c272246-9fa8-4671-a436-966b50f58f86/nowhereman/Linux/Linux-Learn'
-alias lm='ls -al |more'
-alias lr='ls -lR'
-alias ls='ls -F --color=always'
-alias lt='ls -ltr'
-alias lu='ls -lur'
-alias lx='ls -lXB'
-alias make='xtitle Making $(basename $PWD) ; make'
+
+# Process and Resource Monitoring Aliases
+alias pg='ps aux | grep'
+alias pscpu='ps auxf | sort -nr -k 3'
+alias psmem='ps auxf | sort -nr -k 4'
+
+# Miscellaneous Aliases
 alias meminfo='free -m -l -t'
-alias mountedinfo='df -hT | grep "Filesystem\|Type\|Size\|Used\|Avail\|Use%\|Mounted on\|ext4"'
-alias mx='chmod a+x'
-alias myip='curl ipinfo.io/ip ; echo "" ;'
 alias ns='netstat -alnp --protocol=inet | grep -v CLOSE_WAIT | cut -c-6,21-94 | tail +2'
 alias openports='netstat -nape --inet'
-alias pg='ps aux | grep'
-alias ping='ping -c 10'
-alias playm='for i in *.mp3; do play $i; done'
-alias playo='for i in *.ogg; do play $i; done'
-alias playw='for i in *.wav; do play $i; done'
-alias poweroff='sudo /sbin/poweroff'
-alias ps='ps auxf'
-alias pscpu='ps auxf | sort -nr -k 3'
-alias pscpu10='ps auxf | sort -nr -k 3 | head -10'
-alias psmem='ps auxf | sort -nr -k 4'
-alias psmem10='ps auxf | sort -nr -k 4 | head -10'
-alias rc='nano ~/.bashrc'
-alias rcd='nano ~/.bash_functions'
-alias reboot='sudo /sbin/reboot'
-alias shutdown='sudo /sbin/shutdown'
-# saves last command
+alias myip='curl ipinfo.io/ip ; echo "" ;'
 alias sl='fc -ln -1 | sed "s/^\s*//" >> ~/.saved_cmds.txt'
 alias slg='< ~/.saved_cmds.txt grep'
-#
-alias ud='sudo dnf -y update'
-alias udd='sudo dnf -y upgrade'
-alias un='sudo dnf -y remove'
-alias unn='sudo dnf -y autoremove'
 alias unt='tar -zxvf'
 alias wgetc='wget -c'
 alias x='chmod u+x'
 alias youtube='yt-dlp --extract-audio --audio-format mp3 --audio-quality 0 --prefer-ffmpeg'
-alias funderscores="find . -name \"* *\" -type f | /usr/local/bin/rename 's/ /_/g'"
+
+# Audio File Playback Aliases
+alias playm='for i in *.mp3; do mpv --no-audio-display $i; done'
+alias playo='for i in *.ogg; do mpv --no-audio-display $i; done'
+alias playw='for i in *.wav; do mpv --no-audio-display $i; done'
+
+
+
+# GitHub Gist Aliases
+# alias gist-list='gh gist list --limit 15 | awk '{ print $1 "   # " $2 }''
+
+# System Information Aliases
+alias homestart='systemd-run --user "$1"'
+alias mountedinfo='df -hT | grep "Filesystem\|Type\|Size\|Used\|Avail\|Use%\|Mounted on\|ext4"'
+
+# Miscellaneous File Operations Aliases
+alias ebrc='pico ~/.bashrc'
+alias {e,w,r}{c,x,z}{i,o,u}{t,r,y}='exit'
+alias egrep='egrep --color=auto'
+alias fgrep='fgrep --color=auto'
+
+# Process and Resource Monitoring Aliases
+alias pscpu10='ps auxf | sort -nr -k 3 | head -10'
+alias psmem10='ps auxf | sort -nr -k 4 | head -10'
