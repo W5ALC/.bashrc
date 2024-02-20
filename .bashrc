@@ -173,5 +173,3 @@ else
 	clipin() { printf -- '%s\n' "No clipboard capability found" >&2; } # Print an error message to stderr
 	clipout() { printf -- '%s\n' "No clipboard capability found" >&2; } # Print an error message to stderr
 fi
-
-# export OPENAI_API_KEY=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
