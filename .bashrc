@@ -1,122 +1,109 @@
 # .bashrc
-
-# Source global bash config
+#
 if [ -f /etc/bashrc ]; then
 source /etc/bashrc
 fi
-
-# Create an array of potential dotfiles
+EDITOR=nano
+set -o vi
 dotfiles=(
   "${HOME}/.bash_aliases"
   "${HOME}/.bash_functions"
   "${HOME}/.bashrc_colors"
   "${HOME}/.text_functions"
+  "${HOME}/.fzf.opts"
 )
-
-# Work through our list of dotfiles, if a match is found, load it
-# shellcheck source=/dev/null
 for dotfile in "${dotfiles[@]}"; do
   [[ -r "${dotfile}" ]] && source "${dotfile}"
 done
-
 unset dotfiles; unset -v dotfile
 
-# This will show if there is an active SSH connection after each command is executed.
-psONE_ssh()
-{
-if [[ "$(last | sed -n '2p' | awk '{ print $3 }')" =~ ("172.58."*|"67.190.156.142"|"10.0.0.11"|"10.0.2.2") ]]; then
-printf %b "\\[\\e[1;32m\\]✓\n"
-else
-last | sed -n '2p' | awk '{ print $3 }'
-fi
+# Function to check last login and print result
+checkLastLogin() {
+    local login="$1"
+    local known_ips=("172\.58\." "71\.196\.250\.30" "10\.0\.0\." "10\.66\.66\.")
+
+    for ip in "${known_ips[@]}"; do
+        if [[ "$login" =~ $ip ]]; then
+            printf "\\[\\e[1;32m\\]✓\n"
+            return
+        fi
+    done
+
+    echo "$login"
 }
 
-psONE_local() # Shows the last login from the current user; best used with AllowUsers in sshd_config
-{
-if [[ "$(lastlog | grep $(whoami) | awk '{ print $3 }')" =~ ("172.58."*|"67.190.156.142"|"10.0.0.11"|"10.0.2.2") ]]; then
-printf %b "\\[\\e[1;32m\\]✓\n"
-else
-lastlog | grep $(whoami) | awk '{ print $3 }'
-fi
+
+# Function to check last login for SSH session
+psONE_ssh() {
+    local last_login=$(last | sed -n '2p' | awk '{ print $3 }')
+    checkLastLogin "$last_login"
 }
 
-_prompt_command()
-{
-if [[ -n $SSH_CLIENT ]]; then
-	PS1="\\[\\e[1;31m\\]🟢 $(psONE_ssh)\\[\\e[0m\\]\\[\\e[1;33m\\]\n\w/\n\\[\\e[0m\\]\\[\\e[1;31m\\]𝝅 \\[\\e[0m\\]\\[\\e[1;32m\\] "
-else
-	ss -tn src :8222 | grep ESTAB &> /dev/null
-    if [ $? -ne "1" ]; then
-	PS1="\\[\\e[1;31m\\]🟢 $(psONE_local)\\[\\e[1;33m\\]\n\w/\n\\[\\e[0m\\]\\[\\e[1;31m\\]𝝅\\[\\e[0m\\]\\[\\e[1;32m\\] "
+# Function to check last login for local session
+psONE_local() {
+    local last_login=$(lastlog | grep "$(whoami)" | awk '{ print $3 }')
+    checkLastLogin "$last_login"
+}
+
+# Function to set the PS1 prompt
+_prompt_command() {
+    local prompt
+
+    if [[ -n $SSH_CLIENT ]]; then
+        prompt="\\[\\e[1;31m\\]🟢 $(psONE_ssh)"
     else
-	PS1="\\[\\e[1;31m\\]🔴 $(psONE_local)\\[\\e[1;33m\\]\n\w/\n\\[\\e[0m\\]\\[\\e[1;31m\\]𝝅\\[\\e[0m\\]\\[\\e[1;32m\\] "
-fi
-fi
+        if ss -tn src :8222 | grep ESTAB &> /dev/null; then
+            prompt="\\[\\e[1;32m\\]🟢 $(psONE_local)"
+        else
+            prompt="\\[\\e[1;31m\\]🔴 $(psONE_local)"
+        fi
+    fi
+
+    PS1="$prompt\\[\\e[1;33m\\]\n\w/\n\\[\\e[0m\\]\\[\\e[1;31m\\]𝝅\\[\\e[0m\\]\\[\\e[1;32m\\] "
 }
-# This will show if there is an active SSH connection after each command is executed.
+# Set the prompt command
+PROMPT_COMMAND="_prompt_command ; history -a; history -c ; history -r ; $PROMPT_COMMAND"
 
+AUDIO_OUTPUT_DEVICE="$(pactl list short sinks | grep -i running | awk '{ print $2 }')"
 
+check_and_source() {
+    local file="$1"
+    local last_mod="$(stat -c %Y "$file")"
+    local last_source="${file}_last_source"
+    if [ ! -f "$last_source" ] || [ "$last_mod" -gt "$(cat "$last_source")" ]; then
+        source "$file"
+        echo "$last_mod" > "$last_source"
+    fi
+}
 
-
-alias bashr="nano ~/.bashrc && source ~/.bashrc" # edit .bashrc and source it.
-alias bashf="nano ~/.bash_functions && source ~/.bash_functions" # edit .bash_functions and source it.
-alias basha="nano ~/.bash_aliases && source ~/.bash_aliases" # edit .bash_aliases and source it.
-alias bashru="source ~/.bashrc" # source .bashrc.
-alias bashfu="source ~/.bash_functions" # source .bash_functions.
-alias bashau="source ~/.bash_aliases" # source .bash_aliases.
-alias scmd='fc -ln -1 | sed "s/^\s*//" >> ~/.saved_cmds.txt' # save last command to ~/saved_cmds.txt
-alias rcmd='eval $(fzf < ~/.saved_cmds.txt)' # search through ~/saved_cmds.txt and run selected
+alias bashr='$EDITOR ~/.bashrc && check_and_source ~/.bashrc'
+alias bashf='$EDITOR ~/.bash_functions && check_and_source ~/.bash_functions'
+alias basha='$EDITOR ~/.bash_aliases && check_and_source ~/.bash_aliases'
+alias bashru="check_and_source ~/.bashrc"
+alias bashfu="check_and_source ~/.bash_functions"
+alias bashau="check_and_source ~/.bash_aliases"
+alias scmd='fc -ln -1 | sed "s/^\s*//" >> ~/.saved_cmds.txt'
+alias rcmd='eval $(fzf < ~/.saved_cmds.txt)'
 
 # User specific $PATH
-if ! [[ "$PATH" =~ "$HOME/.local/bin:/run/media/nowhereman/5c272246-9fa8-4671-a436-966b50f58f86/nowhereman/bin:$HOME/bin:" ]]
+if ! [[ "$PATH" =~ "$HOME/.local/bin:/usr/local/texlive/2022/bin/x86_64-linux:/media/nowhereman/nowhereman/bin:$HOME/bin:" ]]
 then
-    PATH="$HOME/.local/bin:/run/media/nowhereman/5c272246-9fa8-4671-a436-966b50f58f86/nowhereman/bin:$HOME/bin:$PATH"
+    PATH="$HOME/.local/bin:/usr/local/texlive/2022/bin/x86_64-linux:/media/nowhereman/nowhereman/bin:$HOME/bin:$PATH"
 fi
-
 
 PS2=""
 PS4='-[\e[33m${BASH_SOURCE/.sh}\e[0m: \e[32m${LINENO}\e[0m] '
 PS4+='${FUNCNAME[0]:+${FUNCNAME[0]}(): }'
+
 # Export variables
 export PATH
 HISTSIZE=-1 # unlimited history file
 HISTFILESIZE=-1 # unlimited history file
 HISTCONTROL=ignorespace:ignoredups:erasedups
 shopt -s histappend
-PROMPT_COMMAND="_prompt_command; history -n; history -w; history -c; history -r; $PROMPT_COMMAND"
-export HISTIGNORE=$'[ \t]*:&:[fb]g:[ewr][xcz][iou][try]:ls'
+export MANPAGER="most"
+export HISTIGNORE=$'[ \t]*:&:[fb]g:[ewr][xcz][iou][try]:ls:bash[afr]:bash[afr]u:cd:::'
 export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u)/bus"
-export LESS='-i -N -w  -z-4 -g -e -M -X -F -R -P%t?f%f \
-:stdin .?pb%pb\%:?lbLine %lb:?bbByte %bb:-...'
-GREP_COLORS='sl=48;5;234;39;1:cx=48;5;235;91;1:mt=49;91;1:fn=49;91;1:ln=49;38;5;154;1:bn=49;38;5;97;1:se=49;38;5;81;1';
-# Generated by hand, referencing http://linux-sxs.org/housekeeping/lscolors.html
-# and https://geoff.greer.fm/lscolors/
-LS_COLORS='di=1;32:ln=1;30;47:so=30;45:pi=30;45:ex=1;31:bd=30;46:cd=30;46:su=30'
-LS_COLORS="${LS_COLORS};41:sg=30;41:tw=30;41:ow=30;41:*.rpm=1;31:*.deb=1;31"
-LSCOLORS=CxahafafBxagagabababab
-
-export GREP_COLORS LS_COLORS LSCOLORS
-
-# Check for dircolors and if found, process .dircolors
-# This sets up colours for 'ls' via LS_COLORS
-if [[ -z "${LS_COLORS}" ]] && get_command dircolors; then
-  if [[ -r ~/.dircolors ]]; then
-    eval "$(dircolors -b ~/.dircolors)"
-  elif [[ -r /etc/DIR_COLORS ]] ; then
-    eval "$(dircolors -b /etc/DIR_COLORS)"
-  else
-    eval "$(dircolors -b)"
-  fi
-fi
-
-# LESS man page colors (makes Man pages more readable).
-export LESS_TERMCAP_mb=$'\E[01;31m'
-export LESS_TERMCAP_md=$'\E[01;31m'
-export LESS_TERMCAP_me=$'\E[0m'
-export LESS_TERMCAP_se=$'\E[0m'
-export LESS_TERMCAP_so=$'\E[01;44;33m'
-export LESS_TERMCAP_ue=$'\E[0m'
-export LESS_TERMCAP_us=$'\E[01;32m'
 shopt -s lithist
 shopt -s checkwinsize
 shopt -s globstar
@@ -124,27 +111,67 @@ shopt -s dotglob
 shopt -s cmdhist
 shopt -s autocd
 shopt -s cdspell
-
-# shopt -s dirspell
-# shopt -s complete_fullquote
-# shopt -s execfail
-# shopt -s extquote
 shopt -s force_fignore
-# shopt -s huponexit
 shopt -s nocaseglob
 shopt -s nocasematch
-# shopt -s progcomp
-# shopt -s promptvars
-# shopt -s shift_verbose
-# shopt -s xpg_echo
-alias nano='nano -m'
-
-# set +xeuo pipefail
 set -o notify
 set -o ignoreeof
-clear
+
 # Uncomment the following line if you don't like systemctl's auto-paging feature:
 # export SYSTEMD_PAGER=
 
 export LESS='FiX'
-#shopt -q login_shell && echo 'Login shell' || echo 'Not login shell'
+
+# If not running interactively, don't do anything
+case $- in
+  *i*) ;;
+    *) return;;
+esac
+
+get_command() {
+  local errcount cmd
+  case "${1}" in
+    (-v|--verbose)
+      shift 1
+      errcount=0
+      for cmd in "${@}"; do
+        command -v "${cmd}" ||
+          { printf -- '%s\n' "${cmd} not found" >&2; (( ++errcount )); }
+      done
+      (( errcount == 0 )) && return 0
+    ;;
+    ('')
+      printf -- '%s\n' "get_command [-v|--verbose] list of commands" \
+        "get_command will emit return code 1 if any listed command is not found" >&2
+      return 0
+    ;;
+    (*)
+      errcount=0
+      for cmd in "${@}"; do
+        command -v "${1}" >/dev/null 2>&1 || (( ++errcount ))
+      done
+      (( errcount == 0 )) && return 0
+    ;;
+  esac
+  # If we get to this point, we've failed
+  return 1
+}
+
+if get_command pbcopy; then
+	clipin() { pbcopy; } # Execute the pbcopy command
+	clipout() { pbpaste; } # Execute the pbpaste command
+elif get_command xclip; then
+	clipin() { xclip -selection c; } # Execute the xclip command with the '-selection c' option
+	clipout() { xclip -selection clipboard -o; } # Execute the xclip command with the '-selection clipboard -o' options
+elif get_command xsel ; then
+	clipin() { xsel --clipboard --input; } # Execute the xsel command with the '--clipboard --input' options
+	clipout() { xsel --clipboard --output; } # Execute the xsel command with the '--clipboard --output' options
+elif get_command termux-clipboard-set ; then
+	clipin() { termux-clipboard-set; } # Execute the termux-clipboard-set command
+	clipout() { termux-clipboard-get; } # Execute the termux-clipboard-get command
+else
+	clipin() { printf -- '%s\n' "No clipboard capability found" >&2; } # Print an error message to stderr
+	clipout() { printf -- '%s\n' "No clipboard capability found" >&2; } # Print an error message to stderr
+fi
+
+# export OPENAI_API_KEY=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
