@@ -1,4 +1,146 @@
 # .bash_functions
+
+
+
+alt_h() {
+  local _alth_first_word _alth_lookup_cmd
+  export ALTH_SC="$(tput sc)"
+
+  _alth_first_word=${READLINE_LINE%% *}
+  if (( READLINE_POINT > ${#_alth_first_word} )); then
+    # grab the string up to the cursor. e.g. "df {} | less" where {} is the cursor looks up df.
+    _alth_lookup_cmd=${READLINE_LINE::$READLINE_POINT}
+    # remove previous commands from the left
+    _alth_lookup_cmd=${_alth_lookup_cmd##*[;|&]}
+    # remove leading space if it exists (only a single one though)
+    _alth_lookup_cmd=${_alth_lookup_cmd# }
+    #remove arguments to the current command from the right
+    _alth_lookup_cmd=${_alth_lookup_cmd%% *}
+  else
+    # if the cursor is at the beginning of the line, look up the first word
+    _alth_lookup_cmd=$_alth_first_word
+  fi
+
+  if get_command tldr; then
+   pman "${_alth_lookup_cmd}" && tldr "${_alth_lookup_cmd}"
+  else
+    pman "${_alth_lookup_cmd}"
+  fi
+}
+
+bind -x '"\eh":alt_h' 2>/dev/null
+
+
+# Function to save the last command
+alt_s() {
+    local last_cmd="$(fc -ln -1 | sed 's/^\s*//')"
+    echo "$last_cmd" >> ~/.saved_cmds.txt
+    echo "Command saved: $last_cmd"
+}
+
+# Bind the Alt + s key combination to the save_last_command function
+bind -x '"\es":alt_s'
+#bind -x '"\C-x\C-j": "cd \$(dirs -v | awk '!index(\$2,\"/\") {print \$2}' | fzf --height 40% --reverse --inline-info)\n"'
+
+# Define the alt_r function
+alt_r() {
+    eval $(fzf < ~/.saved_cmds.txt)
+}
+
+# Bind the Alt + r key combination to the alt_r function
+bind -x '"\er":alt_r'
+
+
+# Define the alt_d function
+alt_d() {
+    # Check if the file exists
+    if [ ! -f ~/.saved_cmds.txt ]; then
+        printf "File not found: ~/.saved_cmds.txt\n"
+        return
+    fi
+
+    # Prompt the user to select line(s) to delete
+#   printf "Select line(s) to delete:\n"
+    selected_lines=$(nl -w1 -s' ' ~/.saved_cmds.txt | fzf -m)
+    if [[ -z $selected_lines ]]; then
+        printf "No lines selected\n"
+        return
+    fi
+
+    # Extract line numbers from the selected lines
+    line_numbers=$(echo "$selected_lines" | awk '{print $1}')
+
+    # Create a temporary file
+    temp_file=$(mktemp)
+
+    # Delete the selected lines from the file
+    awk -v lines_to_delete="$line_numbers" 'BEGIN { split(lines_to_delete, lines_array, "\n") }
+          { for (i in lines_array) if (NR == lines_array[i]) next } 1' ~/.saved_cmds.txt > "$temp_file"
+
+    # Replace the original file with the temporary file
+    mv "$temp_file" ~/.saved_cmds.txt
+    printf "Deleted command\n"
+}
+
+
+# Bind the Alt + d key combination to the alt_d function
+bind -x '"\ed":alt_d'
+
+bind -x '"\C-xt": "echo $(date +%H:%M:%S)"'
+function dnf_manage {
+    # Check if required commands exist
+    command -v dnf >/dev/null 2>&1 || { echo >&2 "Error: dnf command not found. Aborting."; return 1; }
+    command -v sudo >/dev/null 2>&1 || { echo >&2 "Error: sudo command not found. Aborting."; return 1; }
+
+    case "$1" in
+        install)
+            read -rp "Enter package name(s) to install: " packages
+            printf "Installing %s...\n" "$packages"
+            sudo dnf install "$packages"
+            ;;
+        update)
+            printf "Updating packages...\n"
+            sudo dnf update -y
+            ;;
+        remove)
+            read -rp "Enter package name(s) to remove: " packages
+            printf "Removing %s...\n" "$packages"
+            sudo dnf remove "$packages"
+            ;;
+        search)
+            printf "Searching for packages matching '%s'...\n" "$2"
+            sudo dnf search "$2"
+            ;;
+        list)
+            printf "Listing installed packages...\n"
+            sudo dnf list installed
+            ;;
+        upgrade)
+            printf "Upgrading packages...\n"
+            sudo dnf upgrade -y
+            ;;
+        *)
+            printf "Invalid command '%s'. Usage: dnf_manage [install|update|remove|search|list|upgrade] [package]\n" "$1"
+            return 1
+            ;;
+    esac
+}
+
+# Key bindings
+bind -x '"\C-xi": "dnf_manage install "'
+bind -x '"\C-xu": "dnf_manage update"'
+bind -x '"\C-xd": "dnf_manage remove "'
+bind -x '"\C-xs": "dnf_manage search "'
+bind -x '"\C-xl": "dnf_manage list"'
+bind -x '"\C-xg": "dnf_manage upgrade"'
+
+
+fcd() {
+  cd "${1:-$HOME}" && echo "Changed directory to $(pwd)"
+  dirs -v | awk 'index($2,"/") { print $2 }' | fzf --height 10% --reverse --inline-info --read0 | xargs -0 cd && echo "Changed directory to $(pwd)"
+}
+
+bind -x '"\C-g": "fcd"'
 #######################################################
 ############## Begin Network functions ################
 #######################################################
@@ -136,16 +278,12 @@ netstat_used_local_ports()
 
 # netstat_free_local_port: get one free tcp-port
 netstat_free_local_port()
-{
-  # didn't work with zsh / bash is ok
-  #read lowerPort upperPort < /proc/sys/net/ipv4/ip_local_port_range
-
-  for port in $(seq 32768 61000); do
+{  for port in $(seq 32768 61000); do
     for i in $(netstat_used_local_ports); do
       if [[ $used_port -eq $port ]]; then
         continue
       else
-        echo $port
+        echo "$port"
         return 0
       fi
     done
@@ -185,27 +323,18 @@ serve() {
     return 0
   fi
   local port="${1:-8000}"
-	allowport $port
-  httpModule=$( \
-    python -c 'import sys; \
-    print("http.server" if sys.version_info[:2] > (2,7) else "SimpleHTTPServer")'
-  )
+	allowport "$port"
+  httpModule=$( python -c 'import sys; print("http.server" if sys.version_info[:2] > (2,7) else "SimpleHTTPServer")' )
   trap 'kill -9 "${httpPid}"' SIGHUP SIGINT SIGTERM
   (
     cd "${2:-.}" || return 1
     case "${httpModule}" in
       (SimpleHTTPServer)
-        python -c "import sys,BaseHTTPServer,SimpleHTTPServer; \
-          sys.tracebacklimit=0; \
-          httpd = BaseHTTPServer.HTTPServer(('', ${port}), SimpleHTTPServer.SimpleHTTPRequestHandler); \
-          httpd.serve_forever()"
+        python -c "import sys,BaseHTTPServer,SimpleHTTPServer; sys.tracebacklimit=0; httpd =BaseHTTPServer.HTTPServer(('', ${port}), SimpleHTTPServer.SimpleHTTPRequestHandler); httpd.serve_forever()"
         httpPid="$!"
       ;;
       (http.server)
-        python -c "import sys,http.server,http.server,ssl,signal; \
-          signal.signal(signal.SIGINT, lambda x,y: sys.exit(0)); \
-          httpd = http.server.HTTPServer(('', ${port}), http.server.SimpleHTTPRequestHandler) ; \
-          httpd.serve_forever()"
+        python -c "import sys,http.server,http.server,ssl,signal; signal.signal(signal.SIGINT, lambda x,y: sys.exit(0)); httpd = http.server.HTTPServer(('', ${port}), http.server.SimpleHTTPRequestHandler) ; httpd.serve_forever()"
         httpPid="$!"
       ;;
       (*)
@@ -221,8 +350,8 @@ function unserve ()
 	#free_port=$(netstat_free_local_port)
 	port="${1:-8000}"
 	#ps auxf | grep http.server | head -n1 | awk '{ print $2 }' | xargs kill -9
-	lsof -nti:$port | xargs kill -9
-	blockport $port
+	lsof -nti:"$port" | xargs kill -9
+	blockport "$port"
 }
 
 function netinfo ()
@@ -243,13 +372,13 @@ echo "---------------------------------------------------"
 function my_ip() # Get IP adress on ethernet.
 {
     MY_IP=$(ip addr show dev enp1s0 | awk '/inet/ { print $2 } ' | head -n 1 | sed -e 's/\/24//' )
-	echo ${MY_IP:-"Not connected"}
+	echo "${MY_IP:-"Not connected"}"
 }
 
 function whatsmyip() {
     local myipv4="$(dig +short -4 @resolver1.opendns.com myip.opendns.com A)"
     local myipv6="$(dig +short -6 @resolver1.ipv6-sandbox.opendns.com myip.opendns.com AAAA)"
-    local reverse="$(dig +short -4 -x ${myipv4})"
+    local reverse="$(dig +short -4 -x "${myipv4}")"
     printf %b "${myipv4}\n${myipv6}\n${reverse}\n"
 }
 
@@ -271,7 +400,7 @@ function proxy_on() {
 function proxy_off() {
     variables=("HTTP_PROXY" "HTTPS_PROXY" "ALL_PROXY" "FTP_PROXY" "SOCKS_PROXY")
     for i in "${variables[@]}"; do
-	unset $i
+	unset "$i"
     done
     env | grep --color=always -e _PROXY | sort
     success "Proxy turned off."
@@ -309,33 +438,58 @@ function sound() {
 	pactl -- set-sink-volume 0 "$1"\%
 }
 
-alt_h() {
-  local _alth_first_word _alth_lookup_cmd
-  export ALTH_SC="$(tput sc)"
 
-  _alth_first_word=${READLINE_LINE%% *}
-  if (( READLINE_POINT > ${#_alth_first_word} )); then
-    # grab the string up to the cursor. e.g. "df {} | less" where {} is the cursor looks up df.
-    _alth_lookup_cmd=${READLINE_LINE::$READLINE_POINT}
-    # remove previous commands from the left
-    _alth_lookup_cmd=${_alth_lookup_cmd##*[;|&]}
-    # remove leading space if it exists (only a single one though)
-    _alth_lookup_cmd=${_alth_lookup_cmd# }
-    #remove arguments to the current command from the right
-    _alth_lookup_cmd=${_alth_lookup_cmd%% *}
-  else
-    # if the cursor is at the beginning of the line, look up the first word
-    _alth_lookup_cmd=$_alth_first_word
-  fi
 
-  if get_command tldr; then
-   pman "${_alth_lookup_cmd}" && tldr "${_alth_lookup_cmd}"
-  else
-    pman "${_alth_lookup_cmd}"
-  fi
+function clone {
+    if [ $# -eq 0 ]; then
+        printf "Please enter a repo name or full URL:\n"
+        read -r repo
+        clone "$repo"
+    elif [[ $1 == --help ]] || [[ $1 == --h ]] || [[ $1 == --? ]]; then
+        printf "This will clone a git repo.\n\n"
+        printf "Option 1: Provide just the name, e.g.:\n"
+        printf "$ clone membership\n"
+        printf "This will do: git clone https://github.com/phillip-kruger/membership.git\n\n"
+        printf "Option 2: Provide the full URL\n"
+        printf "$ clone https://github.com/smallrye/smallrye-rest-client.git\n"
+        printf "This will do: git clone https://github.com/smallrye/smallrye-rest-client.git\n"
+    else
+        if [[ $1 == https://* ]] || [[ $1 == git://* ]] || [[ $1 == ssh://* ]]; then
+            URL=$1
+        else
+            URL="https://github.com/w5alc/$1.git"
+        fi
+
+        printf "git clone %s\n" "$URL"
+        git clone "$URL"
+    fi
+}
+    export -f clone
+
+gistpub()
+{
+	printf "Creating Public Gist from ""$1""\n"
+	gh gist create "$@" -p
 }
 
-bind -x '"\eh":alt_h'
+gistpriv()
+{
+	printf "Creating Private Gist from ""$1""\n"
+	gh gist create "$@"
+}
+
+gistedit() {
+  paste <(seq "$(gh gist list --limit 15 | wc -l)"; gh gist list --limit 15 | awk '{ print ") gh gist edit "$1 " ;;  # " $2 }') | pr -2 -t -s" "
+  read -rp "Enter your choice: "
+  case "${File}" in
+    (*.tar.bz2) tar cjf "${File}" "$@"  ;;
+    (*.tar.gz)  tar czf "${File}" "$@"  ;;
+    (*.tgz)     tar czf "${File}" "$@"  ;;
+    (*.zip)     zip "${File}" "$@"      ;;
+    (*.rar)     rar "${File}" "$@"      ;;
+    (*)         echo "Filetype not recognized" ;;
+  esac
+}
 
 #######################################################
 ################ Begin gpg functions ##################
@@ -344,11 +498,32 @@ bind -x '"\eh":alt_h'
 ################################################################################
 # genpasswd password generator
 ################################################################################
-# Password generator function for when 'pwgen' or 'apg' aren't available
+# Password generator function for when pwgen or apg arent available
 # Koremutake mode inspired by:
 # https:#raw.githubusercontent.com/lpar/kpwgen/master/kpwgen.go
 # http://shorl.com/koremutake.php
 genpasswd() {
+  get-randint() {
+  local nCount nMin nMax nMod randThres i xInt
+  nCount="${1:-1}"
+  nMin="${2:-1}"
+  nMax="${3:-32767}"
+  nMod=$(( nMax - nMin + 1 ))
+  if (( nMod == 0 )); then return 3; fi
+  # De-bias the modulo as best as possible
+  randThres=$(( -(32768 - nMod) % nMod ))
+  if (( randThres < 0 )); then
+    (( randThres = randThres * -1 ))
+  fi
+  i=0
+  while (( i < nCount )); do
+    xInt="${RANDOM}"
+    if (( xInt > ${randThres:-0} )); then
+      printf -- '%d\n' "$(( xInt % nMod + nMin ))"
+      (( i++ ))
+    fi
+  done
+}
   export LC_CTYPE=C
   # localise variables for safety
   local OPTIND pwdChars pwdDigit pwdNum pwdSet pwdKoremutake pwdUpper \
@@ -358,7 +533,7 @@ genpasswd() {
   pwdDigit="false"
   pwdNum=1
   pwdSet="[:alnum:]"
-  pwdKoremutake="false"
+  pwdKoremutake="true"
   pwdUpper="false"
   pwdSpecial="false"
   # shellcheck disable=SC1001
@@ -465,7 +640,7 @@ genpasswd() {
           tmpArray[u]="$(get-randint 1 0 9)"
         fi
       fi
-      # Because special characters aren't sucked up from /dev/urandom,
+      # Because special characters arent sucked up from /dev/urandom,
       # we have no reason to test for them, just swap one in
       if [[ "${pwdSpecial}" = "true" ]]; then
         while (( v == t )); do
@@ -499,9 +674,9 @@ cryptpasswd() {
     inputPwd="${1}"
     pwdSalt=$(tr -dc '[:alnum:]' < /dev/urandom | tr -d ' ' | fold -w 8 | head -n 1 | tolower) 2> /dev/null
   fi
-  # We don't want to mess around with other options like bcrypt as it
+  # We dont want to mess around with other options like bcrypt as it
   # requires more error handling than I can be bothered with
-  # If the crypt mode isn't defined as 1, 5, 6 or n: default to 1
+  # If the crypt mode isnt defined as 1, 5, 6 or n: default to 1
   case "${2}" in
     (n)
       printf -- '%s' "${inputPwd}" \
@@ -626,33 +801,29 @@ function decrypt ()
 gpg --no-options "$1"
 }
 
-function pe ()
-{
-# Passphrase encryption program
-# Created by Dave Crouse 01-13-2006
-# Reads input from text editor and encrypts to screen.
-clear
-echo "         Passphrase Encryption Program";
-echo "--------------------------------------------------"; echo "";
-which $EDITOR &>/dev/null
- if [ $? != "0" ];
-     then
-     echo "It appears that you do not have a text editor set in your
-.bashrc file.";
-     echo "What editor would you like to use ? " ;
-     read EDITOR ; echo "";
- fi
-echo "Enter the name/comment for this message :"
-read comment
-$EDITOR passphraseencryption
-gpg --armor --comment "$comment" --no-options --output passphraseencryption.gpg --symmetric passphraseencryption
-shred -u passphraseencryption ; clear
-echo "Outputting passphrase encrypted message"; echo "" ; echo "" ;
-cat passphraseencryption.gpg ; echo "" ; echo "" ;
-shred -u passphraseencryption.gpg ;
-read -p "Hit enter to exit" temp; clear
+pe() {
+    # Passphrase encryption program
+    # Created by Dave Crouse 01-13-2006
+    # Reads input from a text editor and encrypts to screen.
+    clear
+    printf "Passphrase Encryption Program\n"
+    printf "%s\n" "------------------------------"
+    if [ -z "$EDITOR" ]; then
+        read -rp "It appears that you do not have a text editor set in your .bashrc file. Enter the editor you would like to use: " EDITOR
+        printf "\n"
+    fi
+    read -rp "Enter the name/comment for this message: " comment
+   $EDITOR passphraseencryption
+   gpg --armor --comment "$comment" --no-options --output passphraseencryption.gpg --symmetric passphraseencryption
+    shred -u passphraseencryption
+    clear
+    printf "Outputting passphrase-encrypted message\n\n\n"
+    cat passphraseencryption.gpg
+    printf "\n\n"
+    shred -u passphraseencryption.gpg
+    read -rp "Hit enter to exit" temp
+    clear
 }
-
 
 function encryptfile ()
 {
@@ -660,7 +831,7 @@ zenity --title="zcrypt: Select a file to encrypt" --file-selection > zcrypt
 encryptthisfile=$(cat zcrypt);rm zcrypt
 # Use ascii armor
 #  --no-options (for NO gui usage)
-gpg -acq --yes ${encryptthisfile}
+gpg -acq --yes "${encryptthisfile}"
 zenity --info --title "File Encrypted" --text "$encryptthisfile has been
 encrypted"
 }
@@ -670,7 +841,7 @@ function decryptfile ()
 zenity --title="zcrypt: Select a file to decrypt" --file-selection > zcrypt
 decryptthisfile=$(cat zcrypt);rm zcrypt
 # NOTE: This will OVERWRITE existing files with the same name !!!
-gpg --yes -q ${decryptthisfile}
+gpg --yes -q "${decryptthisfile}"
 zenity --info --title "File Decrypted" --text "$encryptthisfile has been
 decrypted"
 }
@@ -682,6 +853,14 @@ decrypted"
 #######################################################
 ################ Start misc functions #################
 #######################################################
+
+remove_duplicates() {
+    if [ -n "$1" ]; then
+        find "$1" -type f -exec md5sum {} + | sort | uniq -w32 -dD
+    else
+        echo "Usage: remove_duplicates 'directory_path'"
+    fi
+}
 
 function allcolors() {
     # credit to http://askubuntu.com/a/279014
@@ -696,14 +875,19 @@ function allcolors() {
     echo ""
 }
 
+function spin() {
+	RED="\e[91m"
+	WHITE="\e[97m"
+	BLUE="\e[94m"
+	NC="\e[0m"
 
-function spin ()
-{
-echo -ne "${RED}-"
-echo -ne "${WHITE}\b|"
-echo -ne "${BLUE}\bx"
-sleep .02
-echo -ne "${RED}\b+${NC}"
+    echo -ne "${RED}-"
+    sleep 0.02
+    echo -ne "${WHITE}|"
+    sleep 0.02
+    echo -ne "${BLUE}x"
+    sleep 0.02
+    echo -ne "${RED}+${NC}"
 }
 
 #######################################################
@@ -795,7 +979,7 @@ function noleading() {
 function ff() { find . -type f -iname '*'"$*"'*' -ls ; }
 
 # Find a file with pattern $1 in name and Execute $2 on it:
-function fe() { find . -type f -iname '*'"${1:-}"'*' -exec ${2:-file} {} \;  ; }
+function fe() { find . -type f -iname '*'"${1:-}"'*' -exec "${2:-file}" {} \;  ; }
 
 function f() {
     find . -not -iwholename '*.svn*' -not -iwholename '*.git*' -iname "*$1*"
@@ -831,66 +1015,64 @@ Usage: fstr [-i] \"pattern\" [\"filename pattern\"] "
         echo "$usage"
         return;
     fi
-    find . -type f -name "${2:-*}" -print0 | xargs -0 egrep --color=always -sn ${case} "$1" 2>&- | more
+    find . -type f -name "${2:-*}" -print0 | xargs -0 egrep --color=always -sn "${case}" "$1" 2>&- | more
 
 }
 
 
-function swap()
-{ # Swap 2 filenames around, if they exist (from Uzi's bashrc).
+function swap() {
+    # Swap 2 filenames around, if they exist (from Uzis bashrc).
     local TMPFILE=tmp.$$
 
-    [ $# -ne 2 ] && echo "swap: 2 arguments needed" && return 1
-    [ ! -e $1 ] && echo "swap: $1 does not exist" && return 1
-    [ ! -e $2 ] && echo "swap: $2 does not exist" && return 1
+    [ $# -ne 2 ] && printf "swap: 2 arguments needed\n" && return 1
+    [ ! -e "$1" ] && printf "swap: %s does not exist\n" "$1" && return 1
+    [ ! -e "$2" ] && printf "swap: %s does not exist\n" "$2" && return 1
 
-    mv "$1" $TMPFILE
+    mv "$1" "$TMPFILE"
     mv "$2" "$1"
-    mv $TMPFILE "$2"
+    mv "$TMPFILE" "$2"
 }
 
 
 function extract {
- if [ -z "$1" ]; then
-    # display usage if no parameters given
-    echo "Usage: extract <path/file_name>.<zip|rar|bz2|gz|tar|tbz2|tgz|Z|7z|xz|ex|tar.bz2|tar.gz|tar.xz|.zlib|.cso>"
-    echo "       extract <path/file_name_1.ext> [path/file_name_2.ext] [path/file_name_3.ext]"
- else
-    for n in "$@"
-    do
-      if [ -f "$n" ] ; then
-          case "${n%,}" in
-            *.cbt|*.tar.bz2|*.tar.gz|*.tar.xz|*.tbz2|*.tgz|*.txz|*.tar)
-                         tar xvf "$n"       ;;
-            *.lzma)      unlzma ./"$n"      ;;
-            *.bz2)       bunzip2 ./"$n"     ;;
-            *.cbr|*.rar) unrar x -ad ./"$n" ;;
-            *.gz)        gunzip ./"$n"      ;;
-            *.cbz|*.epub|*.zip) unzip ./"$n"   ;;
-            *.z)         uncompress ./"$n"  ;;
-            *.7z|*.apk|*.arj|*.cab|*.cb7|*.chm|*.deb|*.dmg|*.iso|*.lzh|*.msi|*.pkg|*.rpm|*.udf|*.wim|*.xar)
-                         7z x ./"$n"        ;;
-            *.xz)        unxz ./"$n"        ;;
-            *.exe)       cabextract ./"$n"  ;;
-            *.cpio)      cpio -id < ./"$n"  ;;
-            *.cba|*.ace) unace x ./"$n"     ;;
-            *.zpaq)      zpaq x ./"$n"      ;;
-            *.arc)       arc e ./"$n"       ;;
-            *.cso)       ciso 0 ./"$n" ./"$n.iso" && \
-                              extract "$n.iso" && \rm -f "$n" ;;
-            *.zlib)      zlib-flate -uncompress < ./"$n" > ./"$n.tmp" && \
-                              mv ./"$n.tmp" ./"${n%.*zlib}" && rm -f "$n"   ;;
-            *)
-                         echo "extract: '$n' - unknown archive method"
-                         return 1
-                         ;;
-          esac
-      else
-          echo "'$n' - file doesn't exist"
-          return 1
-      fi
-    done
-fi
+    if [ -z "$1" ]; then
+        # display usage if no parameters given
+        printf "Usage: extract <path/file_name>.<zip|rar|bz2|gz|tar|tbz2|tgz|Z|7z|xz|ex|tar.bz2|tar.gz|tar.xz|.zlib|.cso>\n"
+        printf "       extract <path/file_name_1.ext> [path/file_name_2.ext] [path/file_name_3.ext]\n"
+    else
+        for n in "$@"; do
+            if [ -f "$n" ]; then
+                case "${n%,}" in
+                    *.cbt | *.tar.bz2 | *.tar.gz | *.tar.xz | *.tbz2 | *.tgz | *.txz | *.tar)
+                        tar xvf "$n" ;;
+                    *.lzma) unlzma ./"$n" ;;
+                    *.bz2) bunzip2 ./"$n" ;;
+                    *.cbr | *.rar) unrar x -ad ./"$n" ;;
+                    *.gz) gunzip ./"$n" ;;
+                    *.cbz | *.epub | *.zip) unzip ./"$n" ;;
+                    *.z) uncompress ./"$n" ;;
+                    *.7z | *.apk | *.arj | *.cab | *.cb7 | *.chm | *.deb | *.dmg | *.iso | *.lzh | *.msi | *.pkg | *.rpm | *.udf | *.wim | *.xar)
+                        7z x ./"$n" ;;
+                    *.xz) unxz ./"$n" ;;
+                    *.exe) cabextract ./"$n" ;;
+                    *.cpio) cpio -id < ./"$n" ;;
+                    *.cba | *.ace) unace x ./"$n" ;;
+                    *.zpaq) zpaq x ./"$n" ;;
+                    *.arc) arc e ./"$n" ;;
+                    *.cso) ciso 0 ./"$n" ./"$n.iso" && extract "$n.iso" && \rm -f "$n" ;;
+                    *.zlib)
+                        zlib-flate -uncompress < ./"$n" > ./"$n.tmp" && \
+                        mv ./"$n.tmp" ./"${n%.*zlib}" && rm -f "$n" ;;
+                    *)
+                        printf "extract: '$n' - unknown archive method\n"
+                        return 1 ;;
+                esac
+            else
+                printf "'$n' - file doesn't exist\n"
+                return 1
+            fi
+        done
+    fi
 }
 
 
@@ -908,6 +1090,15 @@ function compare_dirs() {
     diff --brief --recursive "$1" "$2"
 }
 
+function bytestohuman() {
+    b=${1:-0}; d=''; s=0; S=(Bytes {K,M,G,T,P,E,Z,Y}iB)
+    while ((b > 1024)); do
+        d="$(printf ".%02d" $((b % 1024 * 100 / 1024)))"
+        b=$((b / 1024))
+        (( s++ ))
+    done
+    echo "$b$d ${S[$s]}"
+}
 
 #######################################################
 ################# End file functions ##################
@@ -919,8 +1110,8 @@ function compare_dirs() {
 #-------------------------------------------------------------
 
 
-function my_ps() { ps $@ -u $USER -o pid,%cpu,%mem,bsdtime,command ; }
-function pp() { my_ps f | awk '!/awk/ && $0~var' var=${1:-".*"} ; }
+function my_ps() { ps "$@" -u "$USER" -o pid,%cpu,%mem,bsdtime,command ; }
+function pp() { my_ps f | awk '!/awk/ && $0~var' var="${1:-".*"}" ; }
 
 
 function killps()   # kill by process name
@@ -933,9 +1124,9 @@ function killps()   # kill by process name
     if [ $# = 2 ]; then sig=$1 ; fi
     for pid in $(my_ps| awk '!/awk/ && $0~pat { print $1 }' pat=${!#} )
     do
-        pname=$(my_ps | awk '$1~var { print $5 }' var=$pid )
+        pname=$(my_ps | awk '$1~var { print $5 }' var="$pid" )
         if ask "Kill process $pid <$pname> with signal $sig?"
-            then kill $sig $pid
+            then kill "$sig" "$pid"
         fi
     done
 }
@@ -944,13 +1135,13 @@ function mydf()         # Pretty-print of 'df' output.
 {                       # Inspired by 'dfc' utility.
     for fs ; do
 
-        if [ ! -d $fs ]
+        if [ ! -d "$fs" ]
         then
-          echo -e $fs" :No such file or directory" ; continue
+          echo -e "$fs"" :No such file or directory" ; continue
         fi
 
-        local info=( $(command df -P $fs | awk 'END{ print $2,$3,$5 }') )
-        local free=( $(command df -Pkh $fs | awk 'END{ print $4 }') )
+        local info=( $(command df -P "$fs" | awk 'END{ print $2,$3,$5 }') )
+        local free=( $(command df -Pkh "$fs" | awk 'END{ print $4 }') )
         local nbstars=$(( 20 * ${info[1]} / ${info[0]} ))
         local out="["
         for ((j=0;j<20;j++)); do
@@ -961,24 +1152,23 @@ function mydf()         # Pretty-print of 'df' output.
             fi
         done
         out=${info[2]}" "$out"] ("$free" free on "$fs")"
-        echo -e $out
+        echo -e "$out"
     done
 }
 
 
 
-function ii()   # Get current host related info.
-{
-    echo -e "\nYou are logged on: " ; hostname
-    echo -e "\nAdditional information: " ; uname -a | awk '{ print $1,$3,$15,$16 }'
-    echo -e "\nUsers logged on: " ; w -hs | cut -d " " -f1 | sort | uniq
-    echo -e "\nCurrent date : " ; date
-    echo -e "\nMachine stats : " ; uptime -p
-    echo -e "\nMemory stats : " ; free -h
-    echo -e "\nDiskspace : " ; mydf /run/media/nowhereman/5c* $HOME
-    echo -e "\nLocal IP Address :" ; my_ip
-    echo -e "\nOpen connections : "; sudo netstat -pan --inet;
-    echo
+function ii() {
+    printf "\nYou are logged on: %s\n" "$(hostname)"
+    printf "\nAdditional information: %s\n" "$(uname -a | awk '{ print $1,$3,$15,$16 }')"
+    printf "\nUsers logged on: %s\n" "$(w -hs | cut -d ' ' -f1 | sort | uniq)"
+    printf "\nCurrent date : %s\n" "$(date)"
+    printf "\nMachine stats : %s\n" "$(uptime -p)"
+    printf "\nMemory stats : %s\n" "$(free -h)"
+    printf "\nDiskspace : %s\n" "$(mydf /run/media/nowhereman/5c* "$HOME")"
+    printf "\nLocal IP Address : %s\n" "$(my_ip)"
+    printf "\nOpen connections : %s\n" "$(sudo netstat -pan --inet)"
+
 }
 
 #######################################################
@@ -1081,34 +1271,51 @@ function topfile
 {
 	BASEDIR=$1
 	TOP=$2
-	find $BASEDIR -xdev -type f -ls |sort -k 7 -r -n | head -$TOP |awk '{size=$7/1024/1024; printf("%dMb %s\n", size,$11);}'
+	find "$BASEDIR" -xdev -type f -ls |sort -k 7 -r -n | head -"$TOP" |awk '{size=$7/1024/1024; printf("%dMb %s\n", size,$11);}'
 }
 
 function topdir
 {
     BASEDIR=$1
     TOP=$2
-	du -alx $BASEDIR | sort -n -r | head -n $TOP | awk '{size=$1/1024/1024; printf("%dMb %s\n", size,$2);}'
+	du -alx "$BASEDIR" | sort -n -r | head -n "$TOP" | awk '{size=$1/1024/1024; printf("%dMb %s\n", size,$2);}'
 }
 
 function ansibleSetup()
 {
-    ansible $1 -m setup > ~/$1.txt
+    ansible "$1" -m setup > ~/"$1".txt
 }
 alias accio=ansibleSetup
 
-function gsay()
-{
-	if [[ "${1}" =~ -[a-z]{2} ]]; then
-		local lang=${1#-};
-		local text="${*#$1}";
-	else
-		local lang=${LANG%_*};
-		local text="$*";
-	fi;
-		mplayer "http://translate.google.com/translate_tts?ie=UTF-8&tl=${lang}&q=${text}" &> /dev/null ;
-}
+function gsay() {
+    if command -v mplayer &>/dev/null; then
+        local player="mplayer"
+    elif command -v vlc &>/dev/null; then
+        local player="vlc"
+    else
+        echo "Error: No suitable media player found (mplayer or vlc required)." >&2
+        return 1
+    fi
 
+    if [[ "${1}" =~ -[a-z][a-z] ]]; then
+        local lang=${1#-}
+        local text="${*#"$1"}"
+    else
+        local lang=${LANG%_*}
+        local text="$*"
+    fi
+
+    local encoded_text=$(printf "%s" "$text" | jq -s -R -r @uri)
+
+    case $player in
+        "mplayer")
+            $player "http://translate.google.com/translate_tts?ie=UTF-8&tl=${lang}&q=${encoded_text}"
+            ;;
+        "vlc")
+            $player "http://translate.google.com/translate_tts?ie=UTF-8&tl=${lang}&q=${encoded_text}" vlc://quit
+            ;;
+    esac
+}
 
 function encodemp3() {
     local FULLPATH=$(readlink -e "$1")
@@ -1120,15 +1327,15 @@ function encodemp3() {
 
 function freespace() {
     local CWD=$(pwd)
-    mapfile -t BIGFILES< <(find ${CWD} -xdev -type f -size +50M -printf  '%s\t%k\t%p\n' | numfmt --field=1 --from=iec --to=si --padding=8 | sort -rh | tail -100)
+    mapfile -t BIGFILES< <(find "${CWD}" -xdev -type f -size +50M -printf  '%s\t%k\t%p\n' | numfmt --field=1 --from=iec --to=si --padding=8 | sort -rh | tail -100)
     for f in "${BIGFILES[@]}"; do
-        local FNAME="$(echo $f | cut -d' ' -f3)"
-        local FSIZEKB="$(echo $f | cut -d' ' -f2)"
+        local FNAME="$(echo "$f" | cut -d' ' -f3)"
+        local FSIZEKB="$(echo "$f" | cut -d' ' -f2)"
         read -p "\nPress 'y' to delete ${FNAME}, 'm' to move it to another directory, and 'k' to keep: " -n 1 -r REPLY
         if [[ $REPLY =~ ^[Mm]$ ]]; then
             read -e -p "\nEnter new destination for ${FNAME}: " -n 64 -r DESTDIR
             if [[ -d "${DESTDIR}" ]]; then
-                local FREESPACE="$(df -k --sync ${DESTDIR} | awk '{ print $4 }' | tail -n 1| cut -d'%' -f1)"
+                local FREESPACE="$(df -k --sync "${DESTDIR}" | awk '{ print $4 }' | tail -n 1| cut -d'%' -f1)"
                 declare -i REMAINING=$(($FREESPACE - $FSIZEKB))
                 if [[ "${REMAINING}" -gt 1024 ]]; then
                     local REMAINING_HUMAN_READABLE=$(printf '%dK\t' "${REMAINING}" | numfmt --field=1 --format="%-10f" --zero-terminated --from=auto --to=iec --padding=8)
@@ -1150,8 +1357,31 @@ function freespace() {
 function pdfshrink() {
     local input=$1
     local output=$2
-    if [ -e $1 ]; then
+    if [ -e "$1" ]; then
         gs -sDEVICE=pdfwrite -dCompatibilityLevel=1.6 -dPDFSETTINGS=/ebook -dNOPAUSE -dQUIET -dBATCH -sOutputFile="$2" "$1"
+    fi
+}
+
+trendsetter()  # Create files for Trendsetter plate making process
+{
+	gs -sDEVICE=tiffsep1 -dNOPAUSE -dBATCH -dSAFER -r1200x1200 -dCOLORSCREEN -dDITHERPPI=85 -sOutputFile="$2"_%02d.tif "$1"
+}
+
+graypdf() {
+    find . -name "*.pdf" \
+        | grep -v "$(find . -name "*.pdf" | grep "$(find . -name "*gray.pdf" | sed 's|-gray.pdf|.pdf|g')")" \
+        | grep -v gray.pdf \
+        | while read -r file; do
+            graypdf_run "$file"
+        done
+}
+
+graypdf_run() {
+    local input="$1"
+    local output="${input%.*}-gray.pdf"
+    
+    if [ -e "$input" ]; then
+        gs -sDEVICE=pdfwrite -sColorConversionStrategy=Gray -dProcessColorModel=/DeviceGray -dCompatibiltyLevel=1.4 -dNOPAUSE -dBATCH -sOutputFile="$output" "$input"
     fi
 }
 
@@ -1203,12 +1433,12 @@ function repackdeb() {
         dpkg-deb -I "$1"
     fi
     export DPKGTMPDIR="$(mktemp -d)"
-    export DEBARCHIVE="$(basename $1)"
-    export FULLPATH="$(readlink -e $1)"
-    export DPKGDEST="$(dirname $FULLPATH)"
+    export DEBARCHIVE="$(basename "$1")"
+    export FULLPATH="$(readlink -e "$1")"
+    export DPKGDEST="$(dirname "$FULLPATH")"
     export NEWDEBARCHIVE=$(printf '%s\n' "${DEBARCHIVE%.deb}_repacked.deb")
     # trap "rm -rf ${DPKGTMPDIR}" EXIT
-    mkdir -pv ${DPKGTMPDIR}
+    mkdir -pv "${DPKGTMPDIR}"
     fakeroot sh -c 'dpkg-deb -RvD "${FULLPATH}" "${DPKGTMPDIR}"; exit'
     # guake -n guake -e 'cd ${DPKGTMPDIR}; ls -lrt ${DPKGTMPDIR}' guake -r 'dpkg editing session'
     read -n 1 -s -r -p "${DEBARCHIVE} extracted to ${DPKGTMPDIR}. Press Enter when finished making modifications."
@@ -1217,9 +1447,23 @@ function repackdeb() {
     rm -rf "${DPKGTMPDIR}"
 }
 
-function rpmextract () {
-    local RPMFILE=$1
-    rpm2cpio "${RPMFILE}" | cpio -idmv
+rpmextract() {
+    if [ -z "$1" ]; then
+        echo "Usage: rpmextract <RPM_FILE>"
+        return 1
+    fi
+
+    local RPMFILE="$1"
+
+    if [ ! -e "$RPMFILE" ]; then
+        echo "Error: RPM file not found: $RPMFILE"
+        return 1
+    fi
+
+    rpm2cpio "$RPMFILE" | cpio -idmv || {
+        echo "Error: Extraction failed for $RPMFILE"
+        return 1
+    }
 }
 
 function viewlog() {
@@ -1288,37 +1532,27 @@ function ask()          # See 'killps' for example of use.
 
 function activedisplay() {
     # mapfile -t SESSIONS< <(loginctl list-sessions --nolegend | awk {'print $1'})
-    local DISP="$(ps -u $(id -u) -o pid= | xargs -I{} cat /proc/{}/environ 2>/dev/null | tr '\0' '\n' | grep -m1 '^DISPLAY=')"
-    # local ACTIVETTY="$(cat /sys/class/tty/tty0/active)"
-    # mapfile -t PROCS< <(pgrep -t "${ACTIVETTY}")
-    # for PROC in "${PROCS[@]}}"; do
-        # if [[ "$(loginctl show-session -p State --value ${SESS})" =~ "active" ]]; then local ACTIVESESS="${SESS}"; fi
-        # local DISP="$(awk -v RS='\0' -F= '$1=="DISPLAY" {print $2}' /proc/${PROC}/environ 2>/dev/null)"; [[ -n "${DISP}" ]] && break;
-    # done;
-    echo -e "${DISP}"
+    local DISP="$(\ps -u $(id -u) -o pid= | xargs -I{} cat /proc/{}/environ 2>/dev/null | tr '\0' '\n' | grep -m1 '^DISPLAY=')"
+    printf "%s\n" "${DISP}"
 }
 
-
-function functions ()
-{
-if [ “$#” -gt 0 ]; then
-for f in “$@”;
-do
-typeset -f “$f”;
-done;
-else
-typeset -F | grep –color=auto -v ‘^declare -f _’;
-fi
+function functions() {
+    if [ "$#" -gt 0 ]; then
+        for f in "$@"; do
+             declare -F "$f" && typeset -f "$f"
+        done
+    else
+        typeset -F | grep -v '^declare -f _'
+    fi
 }
 
-function mach()
-{
-    echo -e "\nMachine information:" ; uname -a
-    echo -e "\nUsers logged on:" ; w -h
-    echo -e "\nCurrent date :" ; date
-    echo -e "\nMachine status :" ; uptime
-    echo -e "\nMemory status :" ; free
-    echo -e "\nFilesystem status :"; df -h
+function mach() {
+    printf "\nMachine information:\n%s\n" "$(uname -a)"
+    printf "\nUsers logged on:\n%s\n" "$(w -h)"
+    printf "\nCurrent date:\n%s\n" "$(date)"
+    printf "\nMachine status:\n%s\n" "$(uptime)"
+    printf "\nMemory status:\n%s\n" "$(free -h)"
+    printf "\nFilesystem status:\n%s\n" "$(df -h)"
 }
 
 
@@ -1368,62 +1602,26 @@ generateqr ()
 printf "$@" | curl -F-=\<- qrenco.de
 }
 
-function fun {
+ryt() {
+    cleanup() {
+        printf "\nInterrupted. Exiting...\n"
+        exit 1
+    }
 
-  case $1 in
+    trap cleanup INT
 
-  fun|f)
+    if [ -f "$1" ]; then
+        pv -qL $[11+(-1 + RANDOM%5)] < "$1"
+    else
+        printf '%s\n' "$@" | pv -qL $[11+(-1 + RANDOM%5)];
+    fi
 
-    #list all custom bash functions defined
-
-    declare -f $(declare -F | grep -v "_" | awk '{ print $3 }')
-
-    ;;
-
-  def|d)
-
-    #show definition of function $1
-
-    declare -f $2
-
-    ;;
-
-  help|h|*)
-
-    printf "[dur]dn shell automation tools\n"
-
-    printf "commands available:\n"
-
-    printf " [f]fun lists all bash functions defined in .bashrc\n"
-
-    printf " [def] <fun> lists definition of function defined in .bashrc\n"
-
-    printf " [h]elp"
-
-    ;;
-
-  esac
-
+    trap - INT  # Remove the trap after execution
+    printf "\n"
 }
 
-function ryt ()
-{
-printf '%s\n' "$@" | pv -qL $[11+(-1 + RANDOM%5)] ; printf "\n"
-}
 
-if get_command pbcopy; then
-  clipin() { pbcopy; }
-  clipout() { pbpaste; }
-elif get_command xclip; then
-  clipin() { xclip -selection c; }
-  clipout() { xclip -selection clipboard -o; }
-elif get_command xsel ; then
-  clipin() { xsel --clipboard --input; }
-  clipout() { xsel --clipboard --output; }
-else
-  clipin() { printf -- '%s\n' "No clipboard capability found" >&2; }
-  clipout() { printf -- '%s\n' "No clipboard capability found" >&2; }
-fi
+
 
 # Function to indent text by n spaces (default: 2 spaces)
 indent() {
@@ -1446,7 +1644,7 @@ printline() {
   fi
 
   # If $1 is empty, print a usage message
-  # Otherwise, check that $1 is a number, if it isn't print an error message
+  # Otherwise, check that $1 is a number, if it isnt print an error message
   # If it is, blindly convert it to base10 to remove any leading zeroes
   case "${1}" in
     (''|-h|--help|--usage|help|usage)
@@ -1463,7 +1661,7 @@ printline() {
     (*) local lineNo="$((10#${1})){p;q;}" ;;
   esac
 
-  # Next, we handle $2.  First, we check if it's a number, indicating a line range
+  # Next, we handle $2.  First, we check if its a number, indicating a line range
   if (( "${2}" )) 2>/dev/null; then
     # Stack the numbers in lowest,highest order
     if (( "${2}" > "${1}" )); then
@@ -1474,7 +1672,7 @@ printline() {
     shift 1
   fi
 
-  # Otherwise, we check if it's a readable file
+  # Otherwise, we check if its a readable file
   if [[ -n "${2}" ]]; then
     if [[ ! -r "${2}" ]]; then
       printf -- '%s\n' "[ERROR] printline: '$2' does not appear to exist or I can't read it." "" \
@@ -1592,31 +1790,277 @@ rolesetup() {
   fi
 }
 
-get_command() {
-  local errcount cmd
-  case "${1}" in
-    (-v|--verbose)
-      shift 1
-      errcount=0
-      for cmd in "${@}"; do
-        command -v "${cmd}" ||
-          { printf -- '%s\n' "${cmd} not found" >&2; (( ++errcount )); }
-      done
-      (( errcount == 0 )) && return 0
-    ;;
-    ('')
-      printf -- '%s\n' "get_command [-v|--verbose] list of commands" \
-        "get_command will emit return code 1 if any listed command is not found" >&2
-      return 0
-    ;;
-    (*)
-      errcount=0
-      for cmd in "${@}"; do
-        command -v "${1}" >/dev/null 2>&1 || (( ++errcount ))
-      done
-      (( errcount == 0 )) && return 0
-    ;;
-  esac
-  # If we get to this point, we've failed
-  return 1
+
+graysize()
+{
+printf "Starting size: $(bytestohuman "$(stat -c "%s" $(find . -name '*gray.pdf' | sed 's|-gray.pdf|.pdf|') | awk '{ sum += $1 } END { print sum }')")\nEnding size:  $(bytestohuman "$(stat -c "%s" $(find . -name '*gray.pdf') | awk '{ sum += $1 } END { print sum }')")\n"; printf "Space saved: "; bytestohuman $(printf $(($(stat -c "%s" $(find . -name '*gray.pdf' | sed 's|-gray.pdf|.pdf|') | awk '{ sum += $1 } END { print sum }')-$(stat -c "%s" $(find . -name '*gray.pdf') | awk '{ sum += $1 } END { print sum }'))))
+}
+
+fire()
+{
+echo "Find and replace in current directory!"
+echo "File pattern to look for? (eg '*.txt')"
+read filepattern
+echo "Existing string?"
+read existing
+echo "Replacement string?"
+read replacement
+echo "Replacing all occurences of $existing with $replacement in files matching $filepattern"
+
+find . -type f -name "$filepattern" -print0 | xargs -0 sed -i -e "s/$existing/$replacement/g"
+}
+
+## Search list of your aliases and functions
+function faf() {
+    CMD=$(
+        (
+            (alias)
+            (functions | grep "()" | cut -d ' ' -f1 | grep -v "^_" )
+        ) | fzf | cut -d '=' -f1
+    );
+
+    eval "$CMD"
+}
+
+function fff(){
+  local file=$(fzf --multi --reverse) #get file from fzf
+  if [[ $file ]]; then
+    for prog in $(echo "$file"); #open all the selected files
+    do $EDITOR "$prog"; done;
+  else
+    echo "cancelled fzf"
+  fi
+}
+
+function ftf() {
+   local file
+   local dir
+   file=$(fzf +m -q "$1") && dir=$(dirname "$file") && cd "$dir"
+   ls
+}
+
+function fkp() {
+  local pid
+  pid=$(ps -ef | sed 1d | fzf -m | awk '{print $2}')
+
+  if [ "x$pid" != "x" ]
+  then
+    echo "$pid" | xargs kill -"${1:-9}"
+  fi
+}
+
+#Enhanced rm
+function frm() {
+  if [[ "$#" -eq 0 ]]; then
+    local files
+    files=$(find . -maxdepth 1 -type f | fzf --multi)
+    echo "$files" | xargs -I '{}' rm {} #we use xargs so that filenames to capture filenames with spaces in them properly
+  else
+    command rm "$@"
+  fi
+}
+
+function fd() {
+    if [[ "$#" != 0 ]]; then
+        builtin cd "$@";
+        return
+    fi
+    while true; do
+        local lsd=$(echo ".." && ls -p | grep '/$' | sed 's;/$;;')
+        local dir="$(printf '%s\n' "${lsd[@]}" |
+            fzf --reverse --preview '
+                __cd_nxt="$(echo {})";
+                __cd_path="$(echo $(pwd)/${__cd_nxt} | sed "s;//;/;")";
+                echo $__cd_path;
+                echo;
+                ls -p --color=always "${__cd_path}";
+        ')"
+        [[ ${#dir} != 0 ]] || return 0
+        builtin cd "$dir" &> /dev/null
+    done
+}
+
+nmapfast() {
+  # Prompt the user for the target IP address or hostname
+  read -p "Enter the target IP address or hostname: " target
+
+  # Validate the target IP address or hostname
+  if [[ -z "$target" ]]; then
+    printf "Error: Target IP address or hostname is required\n"
+    return 1
+  fi
+
+  # Create a temporary file to store the Nmap output
+  nmap_output=$(mktemp)
+
+  # Perform a fast Nmap scan with the specified options
+  nmap_command="sudo nmap -n -sS -Pn -T4 --min-rate 1000 -p- -v $target -oN $nmap_output"
+  $nmap_command | sed -u 's|[0-9]\+/tcp|\033[1;32m&\033[0m|'
+
+  # Extract the open port numbers from the Nmap output
+  ports=$(awk '/^[1-9]/ {print $1}' "$nmap_output" | paste -sd "," -)
+
+  # Print headers and separators for readability
+  printf "\n=======================================\n\n"
+  printf "    PORTS\n    -----  \033[1;31m\n    %s\033[0;00m\n\n" "$ports"
+
+  # Perform a detailed Nmap scan on the open ports using the grc command if available
+  if [[ -n "$ports" ]]; then
+    if command -v grc &>/dev/null; then
+      grc_command="grc nmap -n -Pn -sT -p$ports -sC -sV $target"
+      $grc_command || printf "Warning: Error executing Nmap with grc. Running without grc.\n"
+    else
+      printf "Warning: grc is not installed. Installing it might enhance the output.\n"
+      $nmap_command
+    fi
+  else
+    printf "No open ports found\n"
+  fi
+
+  # Print a separator
+  printf "\n=======================================\n\n"
+
+  # Perform a UDP scan on the top 100 ports
+  nmap_udp_command="sudo nmap -n -Pn -sU --top-ports 100 -v $target"
+  $nmap_udp_command | sed -u 's|[0-9]\+/udp|\033[1;34m&\033[0m|'
+
+  # Delete the temporary file
+  rm -f "$nmap_output"
+}
+
+# Bind the Ctrl + n key combination to run the nmapfast function
+bind -x '"\C-n": nmapfast'
+
+# Creates executable bash script, or just changes modifiers to
+# executable, if file already exists.
+mkexecute() {
+  echo "make File Executable Or Create New Bash Or Python Script"
+  echo ""
+  if [[ ! -f "$1" ]]; then
+    filename=$(basename "$1")
+    extension="${filename##*.}"
+    if [[ "$extension" == "py" ]]; then
+      echo '#!/usr/bin/env python3' >> "$1"
+      echo '#' >> "$1"
+      echo "# Usage: $1 " >> "$1"
+      echo '# ' >> "$1"
+      echo >> "$1"
+      echo 'import sys' >> "$1"
+      echo 'import re' >> "$1"
+      echo >> "$1"
+      echo 'def main():' >> "$1"
+      echo '    ' >> "$1"
+      echo >> "$1"
+      echo "if __name__ == '__main__':" >> "$1"
+      echo '    main()' >> "$1"
+    elif [[ "$extension" == "sh" ]]; then
+      echo '#!/bin/bash' >> "$1"
+      echo '# Shell Script Template' >> "$1"
+      echo "#/ Usage: $1 " >> "$1"
+      echo "#/ Description: " >> "$1"
+      echo "#/ Options: " >> "$1"
+      echo '# ' >> "$1"
+      echo "#Colors" >> "$1"
+      echo
+      +3"
+normal='\e[0m'
+cyan='\e[0;36m'
+green='\e[0;32m'
+light_green='\e[1;32m'
+white='\e[0;37m'
+yellow='\e[1;49;93m'
+blue='\e[0;34m'
+light_blue='\e[1;34m'
+orange='\e[38;5;166m'
+light_cyan='\e[1;36m'
+red='\e[1;31m'
+      " >> "$1"
+      echo "function usage() { grep '^#/' ""$1"" | cut -c4- ; exit 0 ; }" >> "$1"
+      echo >> "$1"
+      echo "# Logging Functions to log what happend in the script [It's recommended]" >> "$1"
+      echo "" >> "$1"
+      echo "readonly LOG_FILE=\"/tmp/\$(basename \"\$0\").log\"" >> "$1"
+      echo "
+    info()    { echo -e \"\$light_cyan[INFO]\$white \$*\$normal\" | tee -a \"\$LOG_FILE\" >&2 ; }
+    warning() { echo -e \"\$yellow[WARNING]\$white \$*\$normal\" | tee -a \"\$LOG_FILE\" >&2 ; }
+    error()   { echo -e \"\$red[ERROR]\$white \$*\$normal\" | tee -a \"\$LOG_FILE\" >&2 ; }
+    fatal()   { echo -e \"\$orange[FATAL]\$white \$*\$normal\" | tee -a \"\$LOG_FILE\" >&2 ; exit 1 ; }
+
+      " >> "$1"
+      echo '# Stops execution if any command fails.' >> "$1"
+      echo 'set -eo pipefail' >> "$1"
+
+      echo >> "$1"
+      echo "function cleanup() {" >> "$1"
+      echo "  # Remove temporary files
+    # Restart services
+    # ..." >> "$1"
+      echo "  echo \"\"" >> "$1"
+      echo "}" >> "$1"
+      echo >> "$1"
+      echo 'function main() {'>> "$1"
+      echo "  if [[ \$1 = \"--help\" ]]" >> "$1"
+      echo "	then" >> "$1"
+      echo '    expr "$*" : ".*--help" > /dev/null && usage'>> "$1"
+      echo '	else' >> "$1"
+      echo '    # Some Code Here'   >> "$1"
+      echo "    echo \"some code here\"" >> "$1"
+      echo "  fi" >> "$1"
+      echo "" >> "$1"
+      echo "#trap command make sure the cleanup function run to clean any miss created by the script" >> "$1"
+      echo >> "$1"
+      echo "trap cleanup EXIT" >> "$1"
+      echo >> "$1"
+      echo '}'>> "$1"
+      echo >> "$1"
+      echo "#This test is used to execute the main code only when the script is executed directly, not sourced" >> "$1"
+      echo "
+if [[ \"\${BASH_SOURCE[0]}\" = \"\$0\" ]]; then
+    # Main code of the script
+      " >> "$1"
+      echo 'main "$@"'>> "$1"
+       echo "
+      info  this is information
+      warning  this is warning
+      error  this is Error
+      fatal  this is Fatal
+      " >> "$1"
+      echo "fi" >> "$1"
+      echo "" >> "$1"
+      echo "" >> "$1"
+    else
+      echo "To give executable permissions To exist file: mkexecute <path/file_name>.<py|sh>"
+      echo "To Create new executable: mkexecute <file_name>.<py|sh>"
+    fi
+  fi
+  if [[ -n "$1" ]]; then
+  chmod u+x "$@"
+  else
+  true
+  fi
+}
+
+wirelessNetworksInRange() {
+ sudo iwlist wlp2s0 scan \
+    | grep Quality -A2 \
+    | tr -d "\n" \
+    | sed 's/--/\n/g' \
+    | sed -e 's/ \+/ /g' \
+    | sort -r \
+    | sed 's/ Quality=//g' \
+    | sed 's/\/70 Signal level=-[0-9]* dBm Encryption key:/ /g' \
+    | sed 's/ ESSID:/ /g'
+}
+
+function start-program {
+    local program_name="$1"
+    local unit_name="$(whoami)-$program_name-$(date +%H:%M).service"
+    systemd-run --user --unit="$unit_name" "$program_name" "${@:2}"
+}
+
+playa() {
+  local num_files=${1:-10}  # Use 10 if no argument is provided
+  for i in $(shuf -e *.m4a -n "$num_files"); do
+    mpv --no-audio-display "$i"
+  done
 }
